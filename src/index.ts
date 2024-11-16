@@ -12,7 +12,29 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 
 // Middleware
-app.use(cors());
+// CORS Configuration
+const allowedOrigins = ['https://www.roundcodebox.com', 'http://localhost:5173'];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      } else {
+        return callback(new Error('CORS policy: This origin is not allowed'), false);
+      }
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true, // Allow cookies and credentials
+  })
+);
+
+// Handle preflight requests
+app.options('*', cors());
+
 app.use(express.json());
 
 // Connect to MongoDB
