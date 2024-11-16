@@ -1,11 +1,10 @@
 // src/index.ts
-// src/index.ts
 import dotenv from 'dotenv';
 dotenv.config();
 
 import express from 'express';
 import cors from 'cors';
-import mongoose from 'mongoose';
+import connectDB from './config/db';
 import authRoutes from './routes/authRoutes';
 
 const app = express();
@@ -22,8 +21,7 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps or curl requests)
-      if (!origin) return callback(null, true);
+      if (!origin) return callback(null, true); // Allow requests with no origin
       if (allowedOrigins.includes(origin)) {
         return callback(null, true);
       } else {
@@ -33,24 +31,15 @@ app.use(
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true, // Allow credentials (cookies, authorization headers, etc.)
+    credentials: true,
   })
 );
-
-// Handle preflight requests (OPTIONS)
-app.options('*', cors());
 
 // Middleware
 app.use(express.json());
 
 // Connect to MongoDB
-mongoose.connect(process.env.MONGO_URI!)
-  .then(() => {
-    console.log('Connected to MongoDB Atlas');
-  })
-  .catch((error) => {
-    console.error('MongoDB connection error:', error);
-  });
+connectDB();
 
 // Routes
 app.use('/api/auth', authRoutes);
