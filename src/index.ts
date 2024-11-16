@@ -1,25 +1,31 @@
-//src/index.ts
+// src/index.ts
+import dotenv from 'dotenv';
+dotenv.config();
 
+import express from 'express';
 import cors from 'cors';
-import express, { Request, Response } from 'express';
+import mongoose from 'mongoose';
+import authRoutes from './routes/authRoutes';
+
 
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-// Enable CORS with specific origin
-app.use(cors({
-  origin: ['http://localhost:5173', 'https://www.roundcodebox.com'],
-  credentials: true,
-}));
+// Middleware
+app.use(cors());
+app.use(express.json());
 
-// Simple endpoint for testing
-app.get('/', (req: Request, res: Response) => {
-  res.send('Hello from Node Express TypeScript app!');
+// Connect to MongoDB
+mongoose.connect(process.env.MONGO_URI!).then(() => {
+  console.log('Connected to MongoDB');
 });
 
-// Health check endpoint
-app.get('/api/health-check', (req: Request, res: Response) => {
-  res.json({ message: 'Hello from Node.js API!' });
+// Routes
+app.use('/api/auth', authRoutes);
+
+// Root endpoint
+app.get('/', (req, res) => {
+  res.send('Hello from Node Express TypeScript app!');
 });
 
 // Start the server
