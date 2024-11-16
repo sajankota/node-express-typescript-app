@@ -7,9 +7,9 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 
 // Enable CORS
-app.use(cors());
+app.use(cors({ origin: ['http://localhost:5173', 'https://www.roundcodebox.com'], credentials: true }));
 
-// Root endpoint
+// Root endpoint (fix for "Cannot GET /")
 app.get('/', (req: Request, res: Response) => {
   res.send('Welcome to the Node.js App on EC2! This is the root endpoint.');
 });
