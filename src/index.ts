@@ -1,17 +1,20 @@
 //src/index.ts
 
-import express, { Request, Response } from 'express';
 import cors from 'cors';
+import express, { Request, Response } from 'express';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-// Enable CORS
-app.use(cors({ origin: ['http://localhost:5173', 'https://www.roundcodebox.com'], credentials: true }));
+// Enable CORS with specific origin
+app.use(cors({
+  origin: ['http://localhost:5173', 'https://www.roundcodebox.com'],
+  credentials: true,
+}));
 
-// Root endpoint (fix for "Cannot GET /")
+// Simple endpoint for testing
 app.get('/', (req: Request, res: Response) => {
-  res.send('Welcome to the Node.js App on EC2! This is the root endpoint.');
+  res.send('Hello from Node Express TypeScript app!');
 });
 
 // Health check endpoint
