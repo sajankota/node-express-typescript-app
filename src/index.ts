@@ -13,7 +13,7 @@ const PORT = process.env.PORT || 4000;
 
 // Middleware
 // CORS Configuration
-const allowedOrigins = ['https://www.roundcodebox.com', 'http://localhost:5173'];
+const allowedOrigins = ['https://www.roundcodebox.com', 'http://localhost:5173', 'https://api.roundcodebox.com'];
 
 app.use(
   cors({
