@@ -7,6 +7,8 @@ import { randomBytes } from 'crypto';
 import { User } from '../models/userModel';
 import { sendEmail } from '../services/emailService';
 
+// Register User Function
+
 export const registerUser = async (req: Request, res: Response): Promise<void> => {
   try {
     const { username, email, password, confirmPassword, role } = req.body;
@@ -108,6 +110,8 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
   }
 };
 
+// Login User Function
+
 export const loginUser = async (req: Request, res: Response): Promise<void> => {
   console.log('[Login Request]', req.body);
 
@@ -162,6 +166,8 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
+// Logout User Function
+
 export const logoutUser = async (req: Request, res: Response): Promise<void> => {
   try {
     // Clear token or session data if needed (client-side typically handles this)
@@ -171,6 +177,8 @@ export const logoutUser = async (req: Request, res: Response): Promise<void> => 
     res.status(500).json({ message: 'Internal server error' });
   }
 };
+
+// Forgot User Password Function
 
 export const forgotPassword = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -202,14 +210,35 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
     // Create reset link
     const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}&email=${email}`;
 
-    // Email content
+    // Construct a professional password reset email template
     const emailContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9; color: #333;">
-        <h2>Password Reset Request</h2>
-        <p>If you requested a password reset, click the link below:</p>
-        <a href="${resetLink}" style="display: inline-block; padding: 10px 20px; background-color: #007BFF; color: #fff; text-decoration: none; border-radius: 5px;">Reset Password</a>
-        <p>If you did not request this, please ignore this email.</p>
-        <p>This link is valid for 1 hour.</p>
+        <div style="text-align: center; padding-bottom: 20px;">
+          <img src="https://www.roundcodebox.com/logo.png" alt="RoundCodeBox Logo" style="width: 150px; max-width: 100%;">
+        </div>
+        <div style="background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">
+          <h2 style="color: #007BFF;">Password Reset Request</h2>
+          <p style="font-size: 16px; color: #555;">Hello,</p>
+          <p style="font-size: 16px; color: #555;">
+            We received a request to reset your password for your RoundCodeBox account. If you made this request, please click the button below to reset your password:
+          </p>
+          <div style="text-align: center; margin: 20px 0;">
+            <a href="${resetLink}" style="display: inline-block; padding: 12px 24px; background-color: #007BFF; color: #fff; text-decoration: none; font-size: 16px; border-radius: 5px;">Reset Password</a>
+          </div>
+          <p style="font-size: 16px; color: #555;">
+            If you did not request a password reset, please ignore this email or contact our support team if you have concerns.
+          </p>
+          <p style="font-size: 16px; color: #555;">
+            <strong>Security Tip:</strong> Never share your password reset link with anyone.
+          </p>
+          <p style="font-size: 14px; color: #888;">This link is valid for 1 hour.</p>
+        </div>
+        <div style="margin-top: 20px; padding: 10px 0; text-align: center; font-size: 14px; color: #888;">
+          <p style="margin: 0;">Need help? <a href="mailto:support@roundcodebox.com" style="color: #007BFF;">Email our support team</a></p>
+          <p style="margin: 0;">&copy; 2024 RoundCodeBox, Inc. All rights reserved.</p>
+          <p style="margin: 0;">123 Main Street, Anytown, USA</p>
+          <p style="margin: 0;"><a href="https://www.roundcodebox.com/unsubscribe" style="color: #007BFF;">Unsubscribe</a></p>
+        </div>
       </div>
     `;
 
