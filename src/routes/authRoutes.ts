@@ -1,7 +1,15 @@
 // src/routes/authRoutes.ts
 
+// src/routes/authRoutes.ts
+
 import express from 'express';
-import { registerUser, loginUser, logoutUser, forgotPassword, resetPassword } from '../controllers/authController';
+import {
+    registerUser,
+    loginUser,
+    logoutUser,
+    forgotPassword,
+    resetPassword,
+} from '../controllers/authController';
 import { verifyToken, AuthRequest } from '../middleware/authMiddleware';
 
 const router = express.Router();
@@ -11,7 +19,6 @@ router.post('/login', loginUser);
 router.post('/logout', logoutUser);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
-
 
 // Protected route example
 router.get('/user-dashboard', verifyToken, (req: AuthRequest, res: express.Response): void => {
