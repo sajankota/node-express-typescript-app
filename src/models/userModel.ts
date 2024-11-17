@@ -25,7 +25,7 @@ const userSchema = new mongoose.Schema(
         },
         reportLimit: {
             type: Number,
-            default: 5, // Default limit for 'free_user'
+            default: 5,
         },
         lastReportReset: {
             type: Date,
@@ -37,7 +37,7 @@ const userSchema = new mongoose.Schema(
 
 // Pre-save hook to set the report limit based on the user's role
 userSchema.pre('save', function (next) {
-    if (this.isNew) {
+    if (this.isNew || this.isModified('role')) {
         switch (this.role) {
             case 'paid_user':
                 this.reportLimit = 20;
@@ -49,22 +49,12 @@ userSchema.pre('save', function (next) {
                 this.reportLimit = 1000;
                 break;
             default:
-                this.reportLimit = 5; // Default limit for 'free_user'
+                this.reportLimit = 5;
                 break;
         }
-    }
-
-    // Reset the monthly report count if the month has changed
-    const currentMonth = new Date().getMonth();
-    const lastResetMonth = this.lastReportReset.getMonth();
-
-    if (currentMonth !== lastResetMonth) {
-        this.monthlyReportCount = 0;
-        this.lastReportReset = new Date(new Date().getFullYear(), currentMonth, 1);
     }
 
     next();
 });
 
-// Export the User model
 export const User = mongoose.model('User', userSchema);
