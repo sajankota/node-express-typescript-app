@@ -133,10 +133,6 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // Log the stored hashed password for debugging
-    console.log('[Stored Hashed Password]', user.password);
-
-    // Compare the provided password with the stored hashed password
     const isPasswordValid = await bcrypt.compare(password, user.password);
     console.log('[Password Comparison]', isPasswordValid ? 'Password is valid' : 'Invalid password');
 
@@ -145,8 +141,9 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    // Create JWT token including username, userId, and role
     const token = jwt.sign(
-      { userId: user._id, role: user.role },
+      { userId: user._id, role: user.role, username: user.username },
       process.env.JWT_SECRET!,
       { expiresIn: '1h' }
     );
@@ -165,6 +162,7 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({ message: 'Internal server error' });
   }
 };
+
 
 // Logout User Function
 
