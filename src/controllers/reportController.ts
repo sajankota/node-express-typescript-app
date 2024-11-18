@@ -16,42 +16,53 @@ export const generateReport = async (req: AuthRequest, res: Response): Promise<v
         const { url } = req.body;
 
         if (!url) {
+            console.warn('[Input Error] URL is missing');
             res.status(400).json({ message: 'URL is required' });
             return;
         }
 
-        // Find the user
-        const user = await User.findById(userId);
+        // Fetch user and report count concurrently
+        const [user, reportCount] = await Promise.all([
+            User.findById(userId),
+            Report.countDocuments({ userId, timestamp: { $gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } })
+        ]);
+
         if (!user) {
+            console.warn('[User Not Found] User ID:', userId);
             res.status(404).json({ message: 'User not found' });
             return;
         }
 
-        // Determine report limits based on user role
         const userRole = user.role || 'free_user';
         const reportLimit = reportLimits[userRole] ?? 5;
-
-        // Check monthly report limit
-        const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-        const reportCount = await Report.countDocuments({ userId, timestamp: { $gte: startOfMonth } });
+        console.log('[User Role and Limits] Role:', userRole, 'Report Limit:', reportLimit, 'Current Count:', reportCount);
 
         if (reportCount >= reportLimit) {
+            console.warn('[Limit Reached] User ID:', userId);
             res.status(403).json({ message: `Monthly report limit of ${reportLimit} reached` });
             return;
         }
 
         // Helper function to fetch full data from Google API
         const fetchFullReport = async (strategy: 'mobile' | 'desktop') => {
-            const apiUrl = `${PAGE_SPEED_API_URL}?url=${encodeURIComponent(url)}&key=${GOOGLE_API_KEY}&strategy=${strategy}`;
-            const response = await axios.get(apiUrl);
-            return response.data; // Return the entire API response
+            try {
+                const apiUrl = `${PAGE_SPEED_API_URL}?url=${encodeURIComponent(url)}&key=${GOOGLE_API_KEY}&strategy=${strategy}`;
+                console.log(`[API Call] Fetching ${strategy} report for URL: ${url}`);
+                const response = await axios.get(apiUrl);
+                console.log(`[API Success] ${strategy} report fetched`);
+                return response.data;
+            } catch (apiError: any) {
+                console.error(`[API Error] Failed to fetch ${strategy} report:`, apiError.message || apiError);
+                throw new Error(`Failed to fetch ${strategy} report`);
+            }
         };
 
         // Fetch both mobile and desktop reports concurrently
         const [mobileReport, desktopReport] = await Promise.all([
             fetchFullReport('mobile'),
-            fetchFullReport('desktop'),
+            fetchFullReport('desktop')
         ]);
+        console.log('[API Success] Both reports fetched successfully');
 
         // Save the complete report data in MongoDB
         const newReport = await Report.create({
@@ -61,10 +72,11 @@ export const generateReport = async (req: AuthRequest, res: Response): Promise<v
             desktopReport,
             timestamp: new Date(),
         });
+        console.log('[MongoDB] Report saved successfully with ID:', newReport._id);
 
-        // Update the user's monthly report count
-        user.monthlyReportCount += 1;
-        await user.save();
+        // Update the user's monthly report count and save
+        await User.findByIdAndUpdate(userId, { $inc: { monthlyReportCount: 1 } });
+        console.log('[MongoDB] User report count updated for User ID:', userId);
 
         // Respond with the complete report data
         res.status(201).json({
@@ -75,8 +87,8 @@ export const generateReport = async (req: AuthRequest, res: Response): Promise<v
                 desktopReport,
             },
         });
-    } catch (error) {
-        console.error('[Report Generation Error]', error);
+    } catch (error: any) {
+        console.error('[Report Generation Error]', error.message || error);
         res.status(500).json({ message: 'Internal server error' });
     }
 };
