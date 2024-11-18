@@ -1,7 +1,7 @@
 // src/middleware/authMiddleware.ts
 
 import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
+import jwt, { JwtPayload } from 'jsonwebtoken';
 
 // Extend the Request interface to include the user property
 export interface AuthRequest extends Request {
@@ -12,22 +12,42 @@ export interface AuthRequest extends Request {
 }
 
 export const verifyToken = (req: AuthRequest, res: Response, next: NextFunction): void => {
-    const token = req.headers['authorization']?.split(' ')[1];
+    const authHeader = req.headers['authorization'];
 
-    if (!token) {
-        res.status(401).json({ message: 'Access denied. No token provided.' });
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        console.warn('[Authorization Error] No token provided or invalid format.');
+        res.status(401).json({ message: 'Access denied. No token provided or invalid format.' });
+        return;
+    }
+
+    const token = authHeader.split(' ')[1];
+
+    // Ensure JWT_SECRET is defined
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+        console.error('[Configuration Error] JWT_SECRET is not defined.');
+        res.status(500).json({ message: 'Internal server error.' });
         return;
     }
 
     try {
-        // Verify the token
-        const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string; role: string };
+        // Verify the token and cast it to JwtPayload
+        const decoded = jwt.verify(token, jwtSecret) as JwtPayload;
+
+        // Check if the decoded token has userId and role
+        if (typeof decoded !== 'object' || !decoded.userId || !decoded.role) {
+            console.error('[Token Error] Invalid token payload.');
+            res.status(401).json({ message: 'Invalid token payload.' });
+            return;
+        }
 
         // Attach user information to the request object
-        req.user = { userId: decoded.userId, role: decoded.role };
+        req.user = { userId: decoded.userId as string, role: decoded.role as string };
+        console.log('[Debug] User ID from token:', req.user.userId);
 
         next();
-    } catch (error) {
-        res.status(401).json({ message: 'Invalid token. Access denied.' });
+    } catch (error: any) {
+        console.error('[Token Verification Error]', error.message);
+        res.status(401).json({ message: 'Invalid token.' });
     }
 };
