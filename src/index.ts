@@ -9,6 +9,8 @@ import connectDB from './config/db';
 import authRoutes from './routes/authRoutes';
 import reportRoutes from './routes/reportRoutes';
 import metaRoutes from './routes/metaRoutes';
+import headingRoutes from "./routes/headingRoutes";
+import contentRoutes from "./routes/contentRoutes";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -43,6 +45,8 @@ connectDB();
 app.use('/api/auth', authRoutes);
 app.use('/api/report', reportRoutes);
 app.use('/api/meta-tags', metaRoutes);
+app.use("/api/headings", headingRoutes);
+app.use("/api/content", contentRoutes);
 
 app.get('/', (req, res) => {
   res.send('Hello from Node Express TypeScript app!');
