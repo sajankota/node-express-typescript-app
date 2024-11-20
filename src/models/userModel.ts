@@ -1,7 +1,5 @@
 // src/models/userModel.ts
 
-// src/models/userModel.ts
-
 import mongoose, { Document } from 'mongoose';
 
 // Define the User interface for TypeScript
