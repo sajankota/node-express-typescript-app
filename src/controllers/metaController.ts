@@ -1,9 +1,10 @@
 // src/controllers/metaController.ts
 
 import * as cheerio from "cheerio";
-import { Request, Response } from "express";
-import MetadataModel from "../models/MetaDataModel"; // Import the Metadata model
-import { AuthRequest } from "../middleware/authMiddleware"; // Use the extended request type for user info
+import { Response } from "express";
+import MetadataModel from "../models/MetaDataModel"; // Metadata model
+import { ReportAnalysis } from "../models/AnalysisReportModel"; // Correctly imported as ReportAnalysis
+import { AuthRequest } from "../middleware/authMiddleware"; // Auth middleware
 
 /**
  * Helper function to fetch metadata using Cheerio
@@ -11,29 +12,22 @@ import { AuthRequest } from "../middleware/authMiddleware"; // Use the extended 
  * @returns Metadata object
  */
 export async function getMetadata(url: string) {
-    // Ensure the URL starts with http:// or https://
     if (!url.startsWith("http://") && !url.startsWith("https://")) {
         url = `https://${url}`;
     }
 
     try {
         console.log(`[Debug] Fetching URL: ${url}`);
-
-        // Fetch the HTML content of the URL
         const response = await fetch(url);
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
-
         console.log(`[Debug] Successfully fetched HTML from: ${url}`);
 
         const html = await response.text();
-
-        // Load the HTML content into Cheerio
         const $ = cheerio.load(html);
         console.log(`[Debug] Loaded HTML into Cheerio for: ${url}`);
 
-        // Extract metadata
         const metadata = {
             title: $("title").first().text().trim() || "",
             description:
@@ -45,9 +39,9 @@ export async function getMetadata(url: string) {
                 $('link[rel="icon"]').attr("href") ||
                 $('link[rel="shortcut icon"]').attr("href") ||
                 "",
-            language: $("html").attr("lang") || "", // Extract language attribute
-            author: $('meta[name="author"]').attr("content") || "", // Extract author
-            viewport: $('meta[name="viewport"]').attr("content") || "", // Extract viewport
+            language: $("html").attr("lang") || "",
+            author: $('meta[name="author"]').attr("content") || "",
+            viewport: $('meta[name="viewport"]').attr("content") || "",
             og: {
                 title: $('meta[property="og:title"]').attr("content") || "",
                 description: $('meta[property="og:description"]').attr("content") || "",
@@ -62,15 +56,14 @@ export async function getMetadata(url: string) {
                 image: $('meta[name="twitter:image"]').attr("content") || "",
                 card: $('meta[name="twitter:card"]').attr("content") || "",
             },
-            custom: {} as Record<string, string>, // Explicit type to allow dynamic indexing
+            custom: {} as Record<string, string>,
         };
 
-        // Extract all custom meta tags
         $('meta').each((_, el) => {
             const name = $(el).attr("name") || $(el).attr("property");
             const content = $(el).attr("content");
             if (name && content) {
-                metadata.custom[name] = content; // Dynamically add to the custom object
+                metadata.custom[name] = content;
             }
         });
 
@@ -78,46 +71,20 @@ export async function getMetadata(url: string) {
         return metadata;
     } catch (error) {
         console.error("[Error] Error fetching metadata:", error);
-        return {
-            title: "",
-            description: "",
-            keywords: "",
-            favicon: "",
-            language: "",
-            author: "",
-            viewport: "",
-            og: {
-                title: "",
-                description: "",
-                image: "",
-                url: "",
-                type: "",
-                site_name: "",
-            },
-            twitter: {
-                title: "",
-                description: "",
-                image: "",
-                card: "",
-            },
-            custom: {},
-        };
+        throw error;
     }
 }
 
 /**
- * API Endpoint: Extract meta tags for a given URL and save it to the database
- * @param req - Express request object
- * @param res - Express response object
+ * Extract meta tags for a URL and save to the database
  */
 export const getMetaTags = async (req: AuthRequest, res: Response): Promise<void> => {
     const { url } = req.body;
+    const userId = req.user?.userId;
 
-    console.log(`[Debug] Received request to scrape metadata for: ${url}`);
+    console.log(`[Debug] Received request to scrape metadata for: ${url}, userId: ${userId}`);
 
-    // Validate the input
     if (!url || typeof url !== "string") {
-        console.error("[Error] Invalid URL received.");
         res.status(400).json({ message: "A valid URL is required." });
         return;
     }
@@ -126,72 +93,81 @@ export const getMetaTags = async (req: AuthRequest, res: Response): Promise<void
         // Fetch metadata
         const metadata = await getMetadata(url);
 
-        // Save metadata to the database with user info
-        if (req.user?.userId) {
-            const metadataRecord = new MetadataModel({
-                userId: req.user.userId,
-                url,
-                metadata,
-            });
+        // Save metadata to the database
+        const metadataRecord = await MetadataModel.create({
+            userId,
+            url,
+            metadata,
+        });
 
-            await metadataRecord.save(); // Save the metadata in the database
-            console.log(`[Debug] Metadata saved to the database for user: ${req.user.userId}`);
-        } else {
-            console.warn("[Warning] No user ID found in the request.");
-        }
+        console.log(`[Debug] Metadata saved with ID: ${metadataRecord._id}`);
 
-        // Send the response
+        // Update or create a ReportAnalysis linked to this metadata
+        const analysisReport = await ReportAnalysis.findOneAndUpdate(
+            { userId, url }, // Match by userId and url
+            {
+                $set: {
+                    "analyses.metaData.status": "completed",
+                    "analyses.metaData.metaDataId": metadataRecord._id,
+                },
+            },
+            { new: true, upsert: true } // Create if not found
+        );
+
+
+        console.log(`[Debug] ReportAnalysis updated with metadata ID: ${metadataRecord._id}`);
+
         res.status(200).json({
             message: "Metadata fetched and saved successfully",
             metadata,
         });
     } catch (error) {
-        console.error("[Error] Failed to fetch metadata.");
-        if (error instanceof Error) {
-            console.error(`[Error Details]: ${error.message}`);
-        }
-        res.status(500).json({
-            message: "Failed to fetch metadata. The website might be blocking requests or taking too long to load.",
-        });
+        console.error("[Error] Failed to fetch metadata:", error);
+
+        // Update ReportAnalysis with failure status
+        await ReportAnalysis.findOneAndUpdate( // Correctly using ReportAnalysis
+            { userId, url },
+            {
+                $set: {
+                    "analyses.metaData.status": "failed",
+                    "analyses.metaData.error": error instanceof Error ? error.message : "Unknown error",
+                },
+            },
+            { upsert: true } // Create a ReportAnalysis if it doesn't exist
+        );
+
+        res.status(500).json({ message: "Failed to fetch metadata." });
     }
 };
 
 /**
- * API Endpoint: Fetch all meta-tags saved in the database for the logged-in user
- * @param req - Express request object (with user info from Auth middleware)
- * @param res - Express response object
+ * Fetch all metadata saved for the logged-in user
  */
 export const getUserMetaTags = async (req: AuthRequest, res: Response): Promise<void> => {
-    const userId = req.user?.userId; // Extract userId from the authenticated request
-    const { page = 1, limit = 10 } = req.query; // Optional pagination query params
+    const userId = req.user?.userId;
+    const { page = 1, limit = 10 } = req.query;
 
     console.log(`[Debug] Received request to fetch meta-tags for user: ${userId}`);
 
-    // Validate if the user is authenticated
     if (!userId) {
-        console.error("[Error] No user ID found in the request.");
         res.status(401).json({ message: "Unauthorized. Please log in to access this resource." });
         return;
     }
 
     try {
-        // Pagination setup
-        const pageNumber = parseInt(page as string, 10) || 1; // Default to page 1
-        const pageSize = parseInt(limit as string, 10) || 10; // Default to 10 items per page
-        const skip = (pageNumber - 1) * pageSize; // Calculate how many records to skip
+        const pageNumber = parseInt(page as string, 10) || 1;
+        const pageSize = parseInt(limit as string, 10) || 10;
+        const skip = (pageNumber - 1) * pageSize;
 
-        // Query the database for metadata records belonging to the user
         const metadataRecords = await MetadataModel.find({ userId })
-            .skip(skip) // Skip records for pagination
-            .limit(pageSize) // Limit the number of records returned
-            .sort({ createdAt: -1 }); // Sort by newest first
+            .skip(skip)
+            .limit(pageSize)
+            .sort({ createdAt: -1 });
 
-        // Count total records for the user
         const totalRecords = await MetadataModel.countDocuments({ userId });
 
         console.log(`[Debug] Found ${metadataRecords.length} records for user: ${userId}`);
 
-        // Send the response with pagination details
         res.status(200).json({
             message: "Metadata retrieved successfully",
             metadataRecords,
@@ -203,10 +179,7 @@ export const getUserMetaTags = async (req: AuthRequest, res: Response): Promise<
             },
         });
     } catch (error) {
-        console.error("[Error] Failed to fetch metadata records.", error);
-        res.status(500).json({
-            message: "Failed to fetch metadata records. Please try again later.",
-        });
+        console.error("[Error] Failed to fetch metadata records:", error);
+        res.status(500).json({ message: "Failed to fetch metadata records. Please try again later." });
     }
 };
-

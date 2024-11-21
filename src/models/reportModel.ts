@@ -4,23 +4,23 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 // Define the report interface
 export interface IReport extends Document {
-    userId: string;
-    url: string;
-    mobileReport: object;
-    desktopReport: object;
-    createdAt: Date;
+    userId: string; // ID of the user who generated the report
+    url: string; // The URL being analyzed
+    mobileReport: object; // Mobile-specific analysis data
+    desktopReport: object; // Desktop-specific analysis data
+    createdAt: Date; // Timestamp when the report was created
 }
 
 // Define the report schema
 const reportSchema = new Schema<IReport>(
     {
-        userId: { type: String, required: true },
-        url: { type: String, required: true },
-        mobileReport: { type: Object, required: true },
-        desktopReport: { type: Object, required: true },
+        userId: { type: String, required: true }, // ID of the user who generated the report
+        url: { type: String, required: true }, // The URL being analyzed
+        mobileReport: { type: Object, required: true }, // Mobile-specific analysis data
+        desktopReport: { type: Object, required: true }, // Desktop-specific analysis data
     },
-    { timestamps: true }
+    { timestamps: true } // Automatically add `createdAt` and `updatedAt` fields
 );
 
-// Create the Report model
+// Create and export the Report model
 export const Report = mongoose.model<IReport>('Report', reportSchema);

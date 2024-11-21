@@ -2,11 +2,11 @@
 
 import express from "express";
 import { analyzeLinksController } from "../controllers/linkController";
-import { verifyToken } from '../middleware/authMiddleware'
+import { authMiddleware } from '../middleware/authMiddleware'
 
 const router = express.Router();
 
 // Link analysis endpoint
-router.post("/analyze-links", verifyToken, analyzeLinksController);
+router.post("/", authMiddleware, analyzeLinksController);
 
 export default router;

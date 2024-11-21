@@ -4,15 +4,28 @@ import axios from "axios";
 import * as cheerio from "cheerio";
 import { Request, Response } from "express";
 import LinkAnalysisModel from "../models/LinkAnalysisModel";
+import { ReportAnalysis } from "../models/AnalysisReportModel";
+import { AuthRequest } from "../middleware/authMiddleware";
 
 /**
  * Analyze links in the provided URL.
  */
-export const analyzeLinksController = async (req: Request, res: Response): Promise<void> => {
+export const analyzeLinksController = async (req: AuthRequest, res: Response): Promise<void> => {
     const { url } = req.body;
+    const userId = req.user?.userId;
 
+    console.log(`[Debug] Received request to analyze links for URL: ${url}, userId: ${userId}`);
+
+    // Validate the input
     if (!url || typeof url !== "string") {
+        console.error("[Error] Invalid URL received.");
         res.status(400).json({ message: "A valid URL is required." });
+        return;
+    }
+
+    if (!userId) {
+        console.warn("[Warning] No user ID found in the request.");
+        res.status(401).json({ message: "Unauthorized request." });
         return;
     }
 
@@ -53,13 +66,29 @@ export const analyzeLinksController = async (req: Request, res: Response): Promi
         const externalLinks = links.filter((link) => !link.isInternal);
 
         // Save the analysis to the database
-        const linkAnalysisRecord = new LinkAnalysisModel({
+        const linkAnalysisRecord = await LinkAnalysisModel.create({
+            userId,
             url,
             internalLinks,
             externalLinks,
         });
 
-        await linkAnalysisRecord.save();
+        console.log(`[Debug] Link analysis saved with ID: ${linkAnalysisRecord._id}`);
+
+        // Update or create an entry in the `ReportAnalysis` model
+        const analysisReport = await ReportAnalysis.findOneAndUpdate(
+            { userId, url }, // Match by userId and url
+            {
+                $set: {
+                    "analyses.linkAnalysis.status": "completed", // Update only `linkAnalysis` field
+                    "analyses.linkAnalysis.linkAnalysisId": linkAnalysisRecord._id, // Add `linkAnalysisId`
+                },
+            },
+            { new: true, upsert: true } // Create if not found, and return the updated document
+        );
+
+
+        console.log(`[Debug] ReportAnalysis updated with LinkAnalysis ID: ${linkAnalysisRecord._id}`);
 
         // Respond with the analysis
         res.status(200).json({
@@ -71,6 +100,18 @@ export const analyzeLinksController = async (req: Request, res: Response): Promi
         });
     } catch (error) {
         console.error(`[Error] Failed to analyze links:`, error);
+
+        // Update `AnalysisReport` with failure status
+        await ReportAnalysis.findOneAndUpdate(
+            { userId, url },
+            {
+                $set: {
+                    "analyses.linkAnalysis.status": "failed",
+                    "analyses.linkAnalysis.error": error instanceof Error ? error.message : "Unknown error",
+                },
+            },
+            { upsert: true } // Create if not found
+        );
 
         // Properly handle the error type
         if (error instanceof Error) {

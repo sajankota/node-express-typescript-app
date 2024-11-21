@@ -2,11 +2,11 @@
 
 import express from "express";
 import { getHeadings } from "../controllers/headingController";
-import { verifyToken } from "../middleware/authMiddleware";
+import { authMiddleware } from "../middleware/authMiddleware";
 
 const router = express.Router();
 
 // POST /api/headings - Extract heading tags from a given URL
-router.post("/", verifyToken, getHeadings);
+router.post("/", authMiddleware, getHeadings);
 
 export default router;

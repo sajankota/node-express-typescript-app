@@ -1,18 +1,21 @@
+
 // src/routes/reportRoutes.ts
 
-import express from 'express';
-import { generateReport, getUserUrls, getIndividualReport } from '../controllers/reportController';
-import { verifyToken } from '../middleware/authMiddleware';
+import express from "express";
+import {
+    generateReport,
+    getUserUrls,
+    getIndividualReport,
+} from "../controllers/reportController";
+import { authMiddleware } from "../middleware/authMiddleware";
 
 const router = express.Router();
 
-// POST /api/report/generate - Generate a new report
-router.post('/generate', verifyToken, generateReport);
+// Add this first to avoid conflict
+router.get("/user-urls", authMiddleware, getUserUrls); // Fetch all user URLs
 
-// GET /api/report/user-urls - Get distinct URLs and monthly report count for the user
-router.get('/user-urls', verifyToken, getUserUrls);
+router.get("/:id", authMiddleware, getIndividualReport); // Fetch an individual report by ID
 
-// GET /api/report/:id - Get an individual report by ID
-router.get('/:id', verifyToken, getIndividualReport);
+router.post("/generate", authMiddleware, generateReport); // Generate a new report
 
 export default router;

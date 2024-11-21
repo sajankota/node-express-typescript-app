@@ -2,11 +2,11 @@
 
 import express from "express";
 import { getContent } from "../controllers/contentController";
-import { verifyToken } from "../middleware/authMiddleware";
+import { authMiddleware } from "../middleware/authMiddleware";
 
 const router = express.Router();
 
 // POST /api/content
-router.post("/", verifyToken, getContent);
+router.post("/", authMiddleware, getContent);
 
 export default router;

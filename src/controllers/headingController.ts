@@ -5,6 +5,7 @@ import * as cheerio from "cheerio";
 import { Request, Response } from "express";
 import HeadingModel from "../models/HeadingModel";
 import { AuthRequest } from "../middleware/authMiddleware";
+import { ReportAnalysis } from "../models/AnalysisReportModel";
 
 /**
  * Extract all heading tags (h1 to h6) and analyze their structure from a given URL.
@@ -23,7 +24,8 @@ export async function extractHeadings(url: string) {
         // Fetch the HTML content of the URL
         const response = await axios.get(url, {
             headers: {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+                "User-Agent":
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
             },
         });
 
@@ -108,25 +110,44 @@ export const getHeadings = async (req: AuthRequest, res: Response): Promise<void
         return;
     }
 
+    // Extract the userId from the authenticated request
+    const userId = req.user?.userId;
+
+    if (!userId) {
+        console.warn("[Warning] No user ID found in the request.");
+        res.status(401).json({ message: "Unauthorized request." });
+        return;
+    }
+
     try {
         // Extract headings
         const { headings, counts, hierarchy } = await extractHeadings(url);
 
         // Save the extracted headings to the database
-        if (req.user?.userId) {
-            const headingRecord = new HeadingModel({
-                userId: req.user.userId, // Get userId from the auth middleware
-                url,
-                headings,
-                counts,
-                hierarchy,
-            });
+        const headingRecord = new HeadingModel({
+            userId, // Use the extracted userId
+            url,
+            headings,
+            counts,
+            hierarchy,
+        });
 
-            await headingRecord.save(); // Save the record to the database
-            console.log(`[Debug] Heading details saved to the database for user: ${req.user.userId}`);
-        } else {
-            console.warn("[Warning] No user ID found in the request.");
-        }
+        await headingRecord.save(); // Save the record to the database
+        console.log(`[Debug] Heading details saved to the database for user: ${userId}`);
+
+        // Save the _id to the `AnalysisReport` schema
+        const analysisReport = await ReportAnalysis.findOneAndUpdate(
+            { userId, url }, // Match by userId and url
+            {
+                $set: {
+                    "analyses.headingAnalysis.status": "completed",
+                    "analyses.headingAnalysis.headingAnalysisId": headingRecord._id,
+                },
+            },
+            { new: true, upsert: true } // Create if not found
+        );
+
+        console.log(`[Debug] ReportAnalysis updated with HeadingAnalysis ID: ${headingRecord._id}`);
 
         // Send the response
         res.status(200).json({
@@ -140,9 +161,23 @@ export const getHeadings = async (req: AuthRequest, res: Response): Promise<void
         if (error instanceof Error) {
             console.error(`[Error Details]: ${error.message}`);
         }
+
+        // Update AnalysisReport with failure status
+        await ReportAnalysis.findOneAndUpdate(
+            { userId, url }, // Use extracted userId
+            {
+                $set: {
+                    "analyses.headingAnalysis.status": "failed",
+                    "analyses.headingAnalysis.error": error instanceof Error ? error.message : "Unknown error",
+                },
+            },
+            { upsert: true } // Create if not found
+        );
+
         res.status(500).json({
             message:
                 "Failed to extract headings. The website might be blocking requests or taking too long to load.",
         });
     }
 };
+
