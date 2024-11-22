@@ -3,21 +3,7 @@
 import { Request, Response } from "express";
 import mongoose from "mongoose";
 import { Report } from "../models/reportModel";
-
-// List of all metrics to extract
-const SEO_METRICS = [
-    "is-crawlable",
-    "document-title",
-    "meta-description",
-    "http-status-code",
-    "link-text",
-    "crawlable-anchors",
-    "robots-txt",
-    "image-alt",
-    "hreflang",
-    "canonical",
-    "structured-data",
-];
+import { seoMetricsConstants } from "../constants/seoMetricsConstants"; // Import SEO metrics constants
 
 // Controller to fetch multiple SEO metrics by report ID
 export const getSEOMetrics = async (req: Request, res: Response): Promise<void> => {
@@ -47,23 +33,29 @@ export const getSEOMetrics = async (req: Request, res: Response): Promise<void> 
         const mobileReport: any = report.mobileReport;
 
         // Initialize the response object for metrics
-        const metrics: Record<string, any> = {};
-
-        // Loop through all the metrics and dynamically extract them
-        SEO_METRICS.forEach((metricId) => {
-            const audit = mobileReport?.lighthouseResult?.audits?.[metricId];
+        const metrics = seoMetricsConstants.map((metric) => {
+            const audit = mobileReport?.lighthouseResult?.audits?.[metric.id];
 
             if (audit) {
-                metrics[metricId] = {
-                    id: metricId,
-                    title: audit.title,
-                    description: audit.description,
-                    score: audit.score,
+                return {
+                    id: metric.id,
+                    name: metric.name,
+                    tooltip: metric.tooltip, // Include the tooltip from the constants
+                    feedback:
+                        audit.score === 1
+                            ? metric.positiveText
+                            : metric.negativeText, // Use positiveText if score is 1, otherwise negativeText
+                    score: audit.score ?? null, // Use the score from the database or set to `null`
                 };
             } else {
-                // If the metric is not found, set it to `null`
-                metrics[metricId] = null;
-                console.warn(`[Warning] Metric ${metricId} not found for reportId: ${reportId}`);
+                console.warn(`[Warning] Metric ${metric.id} not found for reportId: ${reportId}`);
+                return {
+                    id: metric.id,
+                    name: metric.name,
+                    tooltip: metric.tooltip, // Include the tooltip even if data is not available
+                    feedback: "Metric data is not available.",
+                    score: null,
+                };
             }
         });
 
