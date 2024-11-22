@@ -5,8 +5,8 @@ interface ReportLimits {
 }
 
 export const reportLimits: ReportLimits = {
-    free_user: 5,          // Limit for free users
-    paid_user: 50,         // Limit for paid users
-    admin: 200,            // Limit for admins
-    super_admin: 1000,     // Limit for super admins
+    free_user: 100,          // Limit for free users
+    paid_user: 10000,         // Limit for paid users
+    admin: 100000,            // Limit for admins
+    super_admin: 1000000,     // Limit for super admins
 };
