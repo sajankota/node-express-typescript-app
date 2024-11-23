@@ -13,6 +13,10 @@ import headingRoutes from "./routes/headingRoutes";
 import contentRoutes from "./routes/contentRoutes";
 import linkRoutes from "./routes/linkRoutes";
 import { getIndividualReport, getUserUrls } from "./controllers/reportController";
+import seoMetricsRoutes from "./routes/seoMetricsRoutes";
+import performanceMetricsRoutes from "./routes/performanceMetricsRoutes";
+import accessibilityRoutes from "./routes/accessibilityRoutes";
+
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -53,6 +57,15 @@ app.use("/api/meta-tags", metaRoutes); // Meta-tags routes
 app.use("/api/headings", headingRoutes); // Headings routes
 app.use("/api/content", contentRoutes); // Content routes
 app.use("/api/links", linkRoutes); // Links routes
+
+// seo-metrics route at /api/seo-metrics
+app.use("/api/seo-metrics", seoMetricsRoutes); // SEO Metrics routes
+
+// performance-metrics route at /api/performance-metrics
+app.use("/api/performance-metrics", performanceMetricsRoutes);
+
+// accessibility-metrics route at /api/accessibility-metrics
+app.use("/api/accessibility-metrics", accessibilityRoutes);
 
 app.get("/", (req, res) => {
   res.send("Hello from Node Express TypeScript app!");
