@@ -3,7 +3,7 @@
 import { Request, Response } from "express";
 import mongoose from "mongoose";
 import { Report } from "../models/reportModel";
-import { seoMetricsConstants } from "../constants/seoMetricsConstants"; // Import SEO metrics constants
+import { seoMetricsConstants } from "../constants/seoMetricsConstants";
 
 // Controller to fetch multiple SEO metrics by report ID
 export const getMobileSEOMetrics = async (req: Request, res: Response): Promise<void> => {
