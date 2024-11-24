@@ -6,6 +6,11 @@ import { seoMetricsConstants } from "../constants/seoMetricsConstants";
 // Define the type for LighthouseResult
 interface LighthouseResult {
     audits: Record<string, any>;
+    categories?: {
+        seo?: {
+            score: number; // SEO score (0 to 1)
+        };
+    };
 }
 
 // Define the type for Report
@@ -45,8 +50,6 @@ const filterSEOMetrics = (audits: Record<string, any>) => {
     return filteredAudits; // Return the filtered and updated metrics
 };
 
-
-
 // Controller to fetch mobile SEO metrics by report ID
 export const getMobileSEOMetrics = async (req: Request, res: Response): Promise<void> => {
     const { reportId } = req.params;
@@ -71,11 +74,13 @@ export const getMobileSEOMetrics = async (req: Request, res: Response): Promise<
         }
 
         const audits = report.mobileReport?.lighthouseResult?.audits || {};
+        const seoScore = report.mobileReport?.lighthouseResult?.categories?.seo?.score || null;
         const metrics = filterSEOMetrics(audits);
 
         const responseData = {
             url: report.url,
             metrics,
+            seoScore: seoScore !== null ? seoScore * 100 : null, // Convert score to percentage
             createdAt: report.createdAt,
         };
 
@@ -111,11 +116,13 @@ export const getDesktopSEOMetrics = async (req: Request, res: Response): Promise
         }
 
         const audits = report.desktopReport?.lighthouseResult?.audits || {};
+        const seoScore = report.desktopReport?.lighthouseResult?.categories?.seo?.score || null;
         const metrics = filterSEOMetrics(audits);
 
         const responseData = {
             url: report.url,
             metrics,
+            seoScore: seoScore !== null ? seoScore * 100 : null, // Convert score to percentage
             createdAt: report.createdAt,
         };
 
