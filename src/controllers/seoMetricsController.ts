@@ -1,17 +1,58 @@
-// src/controllers/seoMetricsController.ts
-
 import { Request, Response } from "express";
 import mongoose from "mongoose";
 import { Report } from "../models/reportModel";
 import { seoMetricsConstants } from "../constants/seoMetricsConstants";
 
-// Controller to fetch multiple SEO metrics by report ID
+// Define the type for LighthouseResult
+interface LighthouseResult {
+    audits: Record<string, any>;
+}
+
+// Define the type for Report
+interface ReportWithLighthouse {
+    url: string;
+    mobileReport?: { lighthouseResult?: LighthouseResult };
+    desktopReport?: { lighthouseResult?: LighthouseResult };
+    createdAt: string;
+}
+
+// Helper function to filter and update metrics
+const filterSEOMetrics = (audits: Record<string, any>) => {
+    // Create a map of valid metric details from seoMetricsConstants
+    const metricDetailsMap = new Map(
+        seoMetricsConstants.map((metric) => [metric.id, metric])
+    );
+
+    // Filter the audits to include only metrics that exist in seoMetricsConstants
+    const filteredAudits = Object.entries(audits)
+        .filter(([id]) => metricDetailsMap.has(id)) // Include only matching IDs
+        .map(([id, audit]) => {
+            const metricDetails = metricDetailsMap.get(id);
+
+            // Update name, tooltip, and feedback using seoMetricsConstants
+            return {
+                id,
+                name: metricDetails?.name || audit.title || 'Unknown Metric',
+                tooltip: metricDetails?.tooltip || audit.description || '',
+                feedback:
+                    audit.score === 1
+                        ? metricDetails?.positiveText || 'Good'
+                        : metricDetails?.negativeText || 'Needs Improvement',
+                ...audit, // Preserve original audit properties
+            };
+        });
+
+    return filteredAudits; // Return the filtered and updated metrics
+};
+
+
+
+// Controller to fetch mobile SEO metrics by report ID
 export const getMobileSEOMetrics = async (req: Request, res: Response): Promise<void> => {
     const { reportId } = req.params;
 
-    console.log(`[Debug] Fetching SEO metrics for reportId: ${reportId}`);
+    console.log(`[Debug] Fetching mobile SEO metrics for reportId: ${reportId}`);
 
-    // Validate if the `reportId` is a valid MongoDB ObjectId
     if (!mongoose.Types.ObjectId.isValid(reportId)) {
         console.error(`[Error] Invalid reportId format: ${reportId}`);
         res.status(400).json({ message: "Invalid report ID format." });
@@ -19,68 +60,39 @@ export const getMobileSEOMetrics = async (req: Request, res: Response): Promise<
     }
 
     try {
-        // Query the `reports` collection for the specified `reportId`
-        const report = await Report.findById(reportId).select("url mobileReport createdAt");
+        const report = (await Report.findById(reportId).select(
+            "url mobileReport createdAt"
+        )) as ReportWithLighthouse;
 
-        // Check if the report exists
         if (!report) {
             console.warn(`[Warning] Report not found for reportId: ${reportId}`);
             res.status(404).json({ message: "Report not found." });
             return;
         }
 
-        // Cast `mobileReport` to `any` to avoid TypeScript errors
-        const mobileReport: any = report.mobileReport;
+        const audits = report.mobileReport?.lighthouseResult?.audits || {};
+        const metrics = filterSEOMetrics(audits);
 
-        // Initialize the response object for metrics
-        const metrics = seoMetricsConstants.map((metric) => {
-            const audit = mobileReport?.lighthouseResult?.audits?.[metric.id];
-
-            if (audit) {
-                return {
-                    id: metric.id,
-                    name: metric.name,
-                    tooltip: metric.tooltip, // Include the tooltip from the constants
-                    feedback:
-                        audit.score === 1
-                            ? metric.positiveText
-                            : metric.negativeText, // Use positiveText if score is 1, otherwise negativeText
-                    score: audit.score ?? null, // Use the score from the database or set to `null`
-                };
-            } else {
-                console.warn(`[Warning] Metric ${metric.id} not found for reportId: ${reportId}`);
-                return {
-                    id: metric.id,
-                    name: metric.name,
-                    tooltip: metric.tooltip, // Include the tooltip even if data is not available
-                    feedback: "Metric data is not available.",
-                    score: null,
-                };
-            }
-        });
-
-        // Format the final response
         const responseData = {
             url: report.url,
             metrics,
             createdAt: report.createdAt,
         };
 
-        console.log(`[Debug] Successfully fetched SEO metrics for reportId: ${reportId}`);
+        console.log(`[Debug] Successfully fetched mobile SEO metrics for reportId: ${reportId}`);
         res.status(200).json(responseData);
     } catch (error) {
-        console.error("[Get SEO Metrics Error]", error instanceof Error ? error.message : "Unknown error");
-        res.status(500).json({ message: "Failed to fetch the SEO metrics." });
+        console.error("[Get Mobile SEO Metrics Error]", error instanceof Error ? error.message : "Unknown error");
+        res.status(500).json({ message: "Failed to fetch the mobile SEO metrics." });
     }
 };
 
-// Controller to fetch multiple SEO metrics for desktop by report ID
+// Controller to fetch desktop SEO metrics by report ID
 export const getDesktopSEOMetrics = async (req: Request, res: Response): Promise<void> => {
     const { reportId } = req.params;
 
     console.log(`[Debug] Fetching desktop SEO metrics for reportId: ${reportId}`);
 
-    // Validate if the `reportId` is a valid MongoDB ObjectId
     if (!mongoose.Types.ObjectId.isValid(reportId)) {
         console.error(`[Error] Invalid reportId format: ${reportId}`);
         res.status(400).json({ message: "Invalid report ID format." });
@@ -88,47 +100,19 @@ export const getDesktopSEOMetrics = async (req: Request, res: Response): Promise
     }
 
     try {
-        // Query the `reports` collection for the specified `reportId`
-        const report = await Report.findById(reportId).select("url desktopReport createdAt");
+        const report = (await Report.findById(reportId).select(
+            "url desktopReport createdAt"
+        )) as ReportWithLighthouse;
 
-        // Check if the report exists
         if (!report) {
             console.warn(`[Warning] Report not found for reportId: ${reportId}`);
             res.status(404).json({ message: "Report not found." });
             return;
         }
 
-        // Cast `desktopReport` to `any` to avoid TypeScript errors
-        const desktopReport: any = report.desktopReport;
+        const audits = report.desktopReport?.lighthouseResult?.audits || {};
+        const metrics = filterSEOMetrics(audits);
 
-        // Initialize the response object for metrics
-        const metrics = seoMetricsConstants.map((metric) => {
-            const audit = desktopReport?.lighthouseResult?.audits?.[metric.id];
-
-            if (audit) {
-                return {
-                    id: metric.id,
-                    name: metric.name,
-                    tooltip: metric.tooltip, // Include the tooltip from the constants
-                    feedback:
-                        audit.score === 1
-                            ? metric.positiveText
-                            : metric.negativeText, // Use positiveText if score is 1, otherwise negativeText
-                    score: audit.score ?? null, // Use the score from the database or set to `null`
-                };
-            } else {
-                console.warn(`[Warning] Metric ${metric.id} not found for reportId: ${reportId}`);
-                return {
-                    id: metric.id,
-                    name: metric.name,
-                    tooltip: metric.tooltip, // Include the tooltip even if data is not available
-                    feedback: "Metric data is not available.",
-                    score: null,
-                };
-            }
-        });
-
-        // Format the final response
         const responseData = {
             url: report.url,
             metrics,
