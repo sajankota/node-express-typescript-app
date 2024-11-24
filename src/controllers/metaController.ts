@@ -1,77 +1,119 @@
 // src/controllers/metaController.ts
 
-import * as cheerio from "cheerio";
+import got from "got"; // HTTP client
+import metascraper from "metascraper";
+import metascraperAudio from "metascraper-audio";
+import metascraperAuthor from "metascraper-author";
+import metascraperDate from "metascraper-date";
+import metascraperDescription from "metascraper-description";
+import metascraperFeed from "metascraper-feed";
+import metascraperImage from "metascraper-image";
+import metascraperIframe from "metascraper-iframe";
+import metascraperLang from "metascraper-lang";
+import metascraperLogo from "metascraper-logo";
+import metascraperLogoFavicon from "metascraper-logo-favicon";
+import metascraperMediaProvider from "metascraper-media-provider";
+import metascraperPublisher from "metascraper-publisher";
+import metascraperReadability from "metascraper-readability";
+import metascraperTitle from "metascraper-title";
+import metascraperUrl from "metascraper-url";
+import metascraperVideo from "metascraper-video";
+import metadataScraper from "metadata-scraper";
+import puppeteer from "puppeteer";
 import { Response } from "express";
-import MetadataModel from "../models/MetaDataModel"; // Metadata model
-import { ReportAnalysis } from "../models/AnalysisReportModel"; // Correctly imported as ReportAnalysis
-import { AuthRequest } from "../middleware/authMiddleware"; // Auth middleware
+import MetadataModel from "../models/MetadataModel";
+import { ReportAnalysis } from "../models/AnalysisReportModel";
+import { AuthRequest } from "../middleware/authMiddleware";
+
+// Initialize metascraper plugins
+const scraper = metascraper([
+    metascraperAudio(),
+    metascraperAuthor(),
+    metascraperDate(),
+    metascraperDescription(),
+    metascraperFeed(),
+    metascraperImage(),
+    metascraperIframe(),
+    metascraperLang(),
+    metascraperLogo(),
+    metascraperLogoFavicon(),
+    metascraperMediaProvider(),
+    metascraperPublisher(),
+    metascraperReadability(),
+    metascraperTitle(),
+    metascraperUrl(),
+    metascraperVideo(),
+]);
+
+// Common headers for requests to mimic browser behavior
+const commonHeaders = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://www.google.com",
+};
 
 /**
- * Helper function to fetch metadata using Cheerio
- * @param url - URL to scrape metadata from
- * @returns Metadata object
+ * Helper function to fetch metadata using metascraper
  */
-export async function getMetadata(url: string) {
+async function getMetadataWithMetascraper(url: string) {
+    const { body: html, url: finalUrl } = await got(url, { headers: commonHeaders });
+    return await scraper({ html, url: finalUrl });
+}
+
+/**
+ * Helper function to fetch metadata using metadata-scraper
+ */
+async function getMetadataWithMetadataScraper(url: string) {
+    return await metadataScraper(url);
+}
+
+/**
+ * Helper function to fetch metadata using Puppeteer
+ */
+async function getMetadataWithPuppeteer(url: string) {
+    const browser = await puppeteer.launch();
+    const page = await browser.newPage();
+
+    // Add headers to the Puppeteer request
+    await page.setExtraHTTPHeaders(commonHeaders);
+    await page.goto(url, { waitUntil: "domcontentloaded" });
+
+    const metadata = await page.evaluate(() => {
+        const title = document.querySelector("title")?.innerText || "";
+        const description = document.querySelector('meta[name="description"]')?.getAttribute("content") || "";
+        const keywords = document.querySelector('meta[name="keywords"]')?.getAttribute("content") || "";
+
+        return {
+            title,
+            description,
+            keywords,
+        };
+    });
+
+    await browser.close();
+    return metadata;
+}
+
+/**
+ * Main function to fetch metadata using fallback mechanism
+ */
+async function fetchMetadata(url: string) {
     if (!url.startsWith("http://") && !url.startsWith("https://")) {
         url = `https://${url}`;
     }
 
     try {
-        console.log(`[Debug] Fetching URL: ${url}`);
-        const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        console.log(`[Debug] Successfully fetched HTML from: ${url}`);
-
-        const html = await response.text();
-        const $ = cheerio.load(html);
-        console.log(`[Debug] Loaded HTML into Cheerio for: ${url}`);
-
-        const metadata = {
-            title: $("title").first().text().trim() || "",
-            description:
-                $('meta[name="description"]').attr("content") ||
-                $('meta[property="og:description"]').attr("content") ||
-                "",
-            keywords: $('meta[name="keywords"]').attr("content") || "",
-            favicon:
-                $('link[rel="icon"]').attr("href") ||
-                $('link[rel="shortcut icon"]').attr("href") ||
-                "",
-            language: $("html").attr("lang") || "",
-            author: $('meta[name="author"]').attr("content") || "",
-            viewport: $('meta[name="viewport"]').attr("content") || "",
-            og: {
-                title: $('meta[property="og:title"]').attr("content") || "",
-                description: $('meta[property="og:description"]').attr("content") || "",
-                image: $('meta[property="og:image"]').attr("content") || "",
-                url: $('meta[property="og:url"]').attr("content") || "",
-                type: $('meta[property="og:type"]').attr("content") || "",
-                site_name: $('meta[property="og:site_name"]').attr("content") || "",
-            },
-            twitter: {
-                title: $('meta[name="twitter:title"]').attr("content") || "",
-                description: $('meta[name="twitter:description"]').attr("content") || "",
-                image: $('meta[name="twitter:image"]').attr("content") || "",
-                card: $('meta[name="twitter:card"]').attr("content") || "",
-            },
-            custom: {} as Record<string, string>,
-        };
-
-        $('meta').each((_, el) => {
-            const name = $(el).attr("name") || $(el).attr("property");
-            const content = $(el).attr("content");
-            if (name && content) {
-                metadata.custom[name] = content;
-            }
-        });
-
-        console.log(`[Debug] Extracted metadata:`, metadata);
-        return metadata;
+        console.log("[Debug] Trying metascraper...");
+        return await getMetadataWithMetascraper(url);
     } catch (error) {
-        console.error("[Error] Error fetching metadata:", error);
-        throw error;
+        console.warn("[Warning] Metascraper failed. Trying metadata-scraper...");
+        try {
+            return await getMetadataWithMetadataScraper(url);
+        } catch (error) {
+            console.warn("[Warning] Metadata-scraper failed. Trying Puppeteer...");
+            return await getMetadataWithPuppeteer(url);
+        }
     }
 }
 
@@ -90,8 +132,8 @@ export const getMetaTags = async (req: AuthRequest, res: Response): Promise<void
     }
 
     try {
-        // Fetch metadata
-        const metadata = await getMetadata(url);
+        // Fetch metadata with fallback mechanism
+        const metadata = await fetchMetadata(url);
 
         // Save metadata to the database
         const metadataRecord = await MetadataModel.create({
@@ -104,16 +146,15 @@ export const getMetaTags = async (req: AuthRequest, res: Response): Promise<void
 
         // Update or create a ReportAnalysis linked to this metadata
         const analysisReport = await ReportAnalysis.findOneAndUpdate(
-            { userId, url }, // Match by userId and url
+            { userId, url },
             {
                 $set: {
                     "analyses.metaData.status": "completed",
                     "analyses.metaData.metaDataId": metadataRecord._id,
                 },
             },
-            { new: true, upsert: true } // Create if not found
+            { new: true, upsert: true }
         );
-
 
         console.log(`[Debug] ReportAnalysis updated with metadata ID: ${metadataRecord._id}`);
 
@@ -125,7 +166,7 @@ export const getMetaTags = async (req: AuthRequest, res: Response): Promise<void
         console.error("[Error] Failed to fetch metadata:", error);
 
         // Update ReportAnalysis with failure status
-        await ReportAnalysis.findOneAndUpdate( // Correctly using ReportAnalysis
+        await ReportAnalysis.findOneAndUpdate(
             { userId, url },
             {
                 $set: {
@@ -133,7 +174,7 @@ export const getMetaTags = async (req: AuthRequest, res: Response): Promise<void
                     "analyses.metaData.error": error instanceof Error ? error.message : "Unknown error",
                 },
             },
-            { upsert: true } // Create a ReportAnalysis if it doesn't exist
+            { upsert: true }
         );
 
         res.status(500).json({ message: "Failed to fetch metadata." });
