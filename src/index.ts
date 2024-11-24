@@ -16,6 +16,7 @@ import { getIndividualReport, getUserUrls } from "./controllers/reportController
 import seoMetricsRoutes from "./routes/seoMetricsRoutes";
 import performanceMetricsRoutes from "./routes/performanceMetricsRoutes";
 import accessibilityRoutes from "./routes/accessibilityRoutes";
+import cruxRoutes from "./routes/cruxRoutes";
 
 
 const app = express();
@@ -66,6 +67,9 @@ app.use("/api/performance-metrics", performanceMetricsRoutes);
 
 // accessibility-metrics route at /api/accessibility-metrics
 app.use("/api/accessibility-metrics", accessibilityRoutes);
+
+// Add CrUX API routes
+app.use("/api/crux", cruxRoutes);
 
 app.get("/", (req, res) => {
   res.send("Hello from Node Express TypeScript app!");

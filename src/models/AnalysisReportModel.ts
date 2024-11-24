@@ -31,6 +31,12 @@ export interface IReportAnalysis extends Document {
             status: "pending" | "completed" | "failed";
             error?: string;
         };
+        cruxResponse: {
+            cruxResponseId?: string; // Reference to CrUX report
+            data?: object; // Actual CrUX response data
+            status: "pending" | "completed" | "failed"; // Status of the CrUX report
+            error?: string; // Error message (if any)
+        };
     };
     createdAt: Date;
     updatedAt: Date;
@@ -63,6 +69,12 @@ const ReportAnalysisSchema: Schema = new Schema(
             },
             contentAnalysis: {
                 contentAnalysisId: { type: String, default: null },
+                status: { type: String, enum: ["pending", "completed", "failed"], default: "pending" },
+                error: { type: String, default: null },
+            },
+            cruxResponse: {
+                cruxResponseId: { type: String, default: null },
+                data: { type: Schema.Types.Mixed, default: null }, // Store the CrUX API response
                 status: { type: String, enum: ["pending", "completed", "failed"], default: "pending" },
                 error: { type: String, default: null },
             },
