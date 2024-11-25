@@ -1,46 +1,73 @@
 // src/controllers/performanceMetricsController.ts
 
+
+
 import { Request, Response } from "express";
 import mongoose from "mongoose";
 import { Report } from "../models/reportModel";
 import { performanceMetricsConstants } from "../constants/performanceMetricsConstants";
 
-// Helper function to process performance metrics
+// Helper function to process SEO metrics
 const processPerformanceMetrics = (reportData: any, reportId: string) => {
-    return performanceMetricsConstants.map((metric) => {
+    const failedMetrics: any[] = [];
+    const passedMetrics: any[] = [];
+    const manualCheckMetrics: any[] = [];
+
+    performanceMetricsConstants.forEach((metric) => {
         const audit = reportData?.lighthouseResult?.audits?.[metric.id];
 
         if (audit) {
-            return {
+            // Include all fields from the audit while filtering for required ones
+            const metricData = {
                 id: metric.id,
                 name: metric.name,
-                tooltip: metric.tooltip, // Include the tooltip from the constants
+                tooltip: metric.tooltip,
                 feedback:
                     audit.score === 1
                         ? metric.positiveText
-                        : metric.negativeText, // Use positiveText if score is 1, otherwise negativeText
-                score: audit.score ?? null, // Use the score from the database or set to `null`
+                        : metric.negativeText,
+                score: audit.score ?? null,
+                priority: metric.priority,
+                displayValue: audit.displayValue || null, // Include additional fields as needed
+                description: audit.description || null,
+                numericValue: audit.numericValue || null,
+                details: audit.details || null,
             };
+
+            if (audit.score === 1) {
+                passedMetrics.push(metricData);
+            } else if (audit.score === 0) {
+                failedMetrics.push(metricData);
+            } else {
+                manualCheckMetrics.push(metricData);
+            }
         } else {
-            console.warn(`[Warning] Metric ${metric.id} not found for reportId: ${reportId}`);
-            return {
+            // Handle missing metrics with fallback data
+            const fallbackMetricData = {
                 id: metric.id,
                 name: metric.name,
-                tooltip: metric.tooltip, // Include the tooltip even if data is not available
+                tooltip: metric.tooltip,
                 feedback: "Metric data is not available.",
                 score: null,
+                priority: metric.priority,
+                displayValue: null,
+                description: null,
+                numericValue: null,
+                details: null,
             };
+            manualCheckMetrics.push(fallbackMetricData);
         }
     });
+
+    return { failedMetrics, passedMetrics, manualCheckMetrics };
 };
 
-// Controller to fetch mobile performance metrics by report ID
+// Controller to fetch mobile SEO metrics by report ID
 export const getMobilePerformanceMetrics = async (req: Request, res: Response): Promise<void> => {
     const { reportId } = req.params;
 
-    console.log(`[Debug] Fetching Mobile Performance metrics for reportId: ${reportId}`);
+    console.log(`[Debug] Fetching Mobile SEO metrics for reportId: ${reportId}`);
 
-    // Validate if the `reportId` is a valid MongoDB ObjectId
     if (!mongoose.Types.ObjectId.isValid(reportId)) {
         console.error(`[Error] Invalid reportId format: ${reportId}`);
         res.status(400).json({ message: "Invalid report ID format." });
@@ -48,44 +75,43 @@ export const getMobilePerformanceMetrics = async (req: Request, res: Response): 
     }
 
     try {
-        // Query the `reports` collection for the specified `reportId`
         const report = await Report.findById(reportId).select("url mobileReport createdAt");
 
-        // Check if the report exists
         if (!report) {
             console.warn(`[Warning] Report not found for reportId: ${reportId}`);
             res.status(404).json({ message: "Report not found." });
             return;
         }
 
-        // Cast `mobileReport` to `any` to avoid TypeScript errors
         const mobileReport: any = report.mobileReport;
+        const { failedMetrics, passedMetrics, manualCheckMetrics } = processPerformanceMetrics(mobileReport, reportId);
+        const performanceScore = mobileReport?.lighthouseResult?.categories?.performance?.score || null;
 
-        // Process the metrics
-        const metrics = processPerformanceMetrics(mobileReport, reportId);
-
-        // Format the final response
         const responseData = {
             url: report.url,
-            metrics,
+            seoScore: performanceScore,
+            metrics: {
+                failedMetrics,
+                passedMetrics,
+                manualCheckMetrics,
+            },
             createdAt: report.createdAt,
         };
 
-        console.log(`[Debug] Successfully fetched Mobile Performance metrics for reportId: ${reportId}`);
+        console.log(`[Debug] Successfully fetched Mobile SEO metrics for reportId: ${reportId}`);
         res.status(200).json(responseData);
     } catch (error) {
-        console.error("[Get Mobile Performance Metrics Error]", error instanceof Error ? error.message : "Unknown error");
-        res.status(500).json({ message: "Failed to fetch the Mobile Performance metrics." });
+        console.error("[Get Mobile SEO Metrics Error]", error instanceof Error ? error.message : "Unknown error");
+        res.status(500).json({ message: "Failed to fetch the Mobile SEO metrics." });
     }
 };
 
-// Controller to fetch desktop performance metrics by report ID
+// Controller to fetch desktop SEO metrics by report ID
 export const getDesktopPerformanceMetrics = async (req: Request, res: Response): Promise<void> => {
     const { reportId } = req.params;
 
-    console.log(`[Debug] Fetching Desktop Performance metrics for reportId: ${reportId}`);
+    console.log(`[Debug] Fetching Desktop SEO metrics for reportId: ${reportId}`);
 
-    // Validate if the `reportId` is a valid MongoDB ObjectId
     if (!mongoose.Types.ObjectId.isValid(reportId)) {
         console.error(`[Error] Invalid reportId format: ${reportId}`);
         res.status(400).json({ message: "Invalid report ID format." });
@@ -93,33 +119,33 @@ export const getDesktopPerformanceMetrics = async (req: Request, res: Response):
     }
 
     try {
-        // Query the `reports` collection for the specified `reportId`
         const report = await Report.findById(reportId).select("url desktopReport createdAt");
 
-        // Check if the report exists
         if (!report) {
             console.warn(`[Warning] Report not found for reportId: ${reportId}`);
             res.status(404).json({ message: "Report not found." });
             return;
         }
 
-        // Cast `desktopReport` to `any` to avoid TypeScript errors
         const desktopReport: any = report.desktopReport;
+        const { failedMetrics, passedMetrics, manualCheckMetrics } = processPerformanceMetrics(desktopReport, reportId);
+        const performanceScore = desktopReport?.lighthouseResult?.categories?.performance?.score || null;
 
-        // Process the metrics
-        const metrics = processPerformanceMetrics(desktopReport, reportId);
-
-        // Format the final response
         const responseData = {
             url: report.url,
-            metrics,
+            seoScore: performanceScore,
+            metrics: {
+                failedMetrics,
+                passedMetrics,
+                manualCheckMetrics,
+            },
             createdAt: report.createdAt,
         };
 
-        console.log(`[Debug] Successfully fetched Desktop Performance metrics for reportId: ${reportId}`);
+        console.log(`[Debug] Successfully fetched Desktop SEO metrics for reportId: ${reportId}`);
         res.status(200).json(responseData);
     } catch (error) {
-        console.error("[Get Desktop Performance Metrics Error]", error instanceof Error ? error.message : "Unknown error");
-        res.status(500).json({ message: "Failed to fetch the Desktop Performance metrics." });
+        console.error("[Get Desktop SEO Metrics Error]", error instanceof Error ? error.message : "Unknown error");
+        res.status(500).json({ message: "Failed to fetch the Desktop SEO metrics." });
     }
 };
