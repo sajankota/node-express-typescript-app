@@ -20,7 +20,7 @@ interface MetricData {
     displayValue: string | null;
     description: string | null;
     numericValue: number | null;
-    details: any;
+    details?: any; // Optional field
 }
 
 // Helper function to process and sort metrics
@@ -40,6 +40,7 @@ const processPerformanceMetrics = (reportData: any, reportId: string) => {
     performanceMetricsConstants.forEach((metric) => {
         const audit = reportData?.lighthouseResult?.audits?.[metric.id];
 
+        // Only add `details` if it exists in the audit
         const metricData: MetricData = {
             id: metric.id,
             name: metric.name,
@@ -53,8 +54,12 @@ const processPerformanceMetrics = (reportData: any, reportId: string) => {
             displayValue: audit?.displayValue || null,
             description: audit?.description || null,
             numericValue: audit?.numericValue || null,
-            details: audit?.details || null,
         };
+
+        // Conditionally add the details field
+        if (audit?.details) {
+            metricData.details = audit.details;
+        }
 
         if (audit?.score === 1) {
             passedMetrics.push(metricData);
