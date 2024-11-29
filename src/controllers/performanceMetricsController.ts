@@ -70,6 +70,17 @@ const processPerformanceMetrics = (reportData: any, reportId: string) => {
         }
     });
 
+    // Move metrics with `details.items` having 1 or more items from `manualCheckMetrics` to `failedMetrics`
+    const metricsToMove = manualCheckMetrics.filter(
+        (metric) => metric.details?.items && metric.details.items.length > 0
+    );
+    failedMetrics.push(...metricsToMove);
+
+    // Remove moved metrics from `manualCheckMetrics`
+    const updatedManualCheckMetrics = manualCheckMetrics.filter(
+        (metric) => !(metric.details?.items && metric.details.items.length > 0)
+    );
+
     // Sort failedMetrics by priority
     failedMetrics.sort(
         (a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]
@@ -80,8 +91,14 @@ const processPerformanceMetrics = (reportData: any, reportId: string) => {
         (a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]
     );
 
-    return { failedMetrics, passedMetrics, manualCheckMetrics };
+    return {
+        failedMetrics,
+        passedMetrics,
+        manualCheckMetrics: updatedManualCheckMetrics,
+    };
 };
+
+
 
 // Controller to fetch mobile performance metrics by report ID
 export const getMobilePerformanceMetrics = async (
