@@ -1,144 +1,148 @@
-// src/controllers/seoMetricsController.ts
-
 import { Request, Response } from "express";
 import mongoose from "mongoose";
 import { Report } from "../models/reportModel";
 import { seoMetricsConstants } from "../constants/seoMetricsConstants";
 
-// Controller to fetch multiple SEO metrics by report ID
+// Define the type for LighthouseResult
+interface LighthouseResult {
+    audits: Record<string, any>;
+    categories?: {
+        seo?: {
+            score: number; // SEO score (0 to 1)
+        };
+    };
+}
+
+// Define the type for Report
+interface ReportWithLighthouse {
+    url: string;
+    mobileReport?: { lighthouseResult?: LighthouseResult };
+    desktopReport?: { lighthouseResult?: LighthouseResult };
+    createdAt: string;
+}
+
+interface CategorizedMetrics {
+    failedMetrics: Array<any>;
+    passedMetrics: Array<any>;
+    manualCheckMetrics: Array<any>;
+}
+
+const categorizeSEOMetrics = (audits: Record<string, any>): CategorizedMetrics => {
+    const metricDetailsMap = new Map<string, any>(
+        seoMetricsConstants.map((metric) => [metric.id, metric])
+    );
+
+    const categorizedMetrics: CategorizedMetrics = {
+        failedMetrics: [],
+        passedMetrics: [],
+        manualCheckMetrics: [],
+    };
+
+    for (const [id, audit] of Object.entries(audits)) {
+        const metricDetails = metricDetailsMap.get(id);
+
+        if (metricDetails) {
+            // Construct the metric object, including only the fields present in the audit
+            const metric: any = {
+                id,
+                name: metricDetails.name || audit.title || "Unknown Metric",
+                feedback:
+                    audit.score === 1
+                        ? metricDetails.positiveText || "Good"
+                        : metricDetails.negativeText || "Needs Improvement",
+                tooltip: metricDetails.tooltip || audit.description || "",
+                priority: metricDetails.priority || "Medium",
+            };
+
+            // Include the `details` field only if it exists in the original audit
+            if (audit.details) {
+                metric.details = audit.details;
+            }
+
+            // Include any additional fields from the original audit
+            metric.score = audit.score;
+            metric.scoreDisplayMode = audit.scoreDisplayMode;
+
+            // Categorize the metric based on its score
+            if (audit.score === 1) {
+                categorizedMetrics.passedMetrics.push(metric);
+            } else if (audit.score === 0) {
+                categorizedMetrics.failedMetrics.push(metric);
+            } else {
+                categorizedMetrics.manualCheckMetrics.push(metric);
+            }
+        }
+    }
+
+    return categorizedMetrics;
+};
+
 export const getMobileSEOMetrics = async (req: Request, res: Response): Promise<void> => {
     const { reportId } = req.params;
 
-    console.log(`[Debug] Fetching SEO metrics for reportId: ${reportId}`);
-
-    // Validate if the `reportId` is a valid MongoDB ObjectId
     if (!mongoose.Types.ObjectId.isValid(reportId)) {
-        console.error(`[Error] Invalid reportId format: ${reportId}`);
         res.status(400).json({ message: "Invalid report ID format." });
         return;
     }
 
     try {
-        // Query the `reports` collection for the specified `reportId`
-        const report = await Report.findById(reportId).select("url mobileReport createdAt");
+        const report = (await Report.findById(reportId).select(
+            "url mobileReport createdAt"
+        )) as ReportWithLighthouse;
 
-        // Check if the report exists
         if (!report) {
-            console.warn(`[Warning] Report not found for reportId: ${reportId}`);
             res.status(404).json({ message: "Report not found." });
             return;
         }
 
-        // Cast `mobileReport` to `any` to avoid TypeScript errors
-        const mobileReport: any = report.mobileReport;
+        const audits = report.mobileReport?.lighthouseResult?.audits || {};
+        const seoScore = report.mobileReport?.lighthouseResult?.categories?.seo?.score || null;
+        const metrics = categorizeSEOMetrics(audits);
 
-        // Initialize the response object for metrics
-        const metrics = seoMetricsConstants.map((metric) => {
-            const audit = mobileReport?.lighthouseResult?.audits?.[metric.id];
-
-            if (audit) {
-                return {
-                    id: metric.id,
-                    name: metric.name,
-                    tooltip: metric.tooltip, // Include the tooltip from the constants
-                    feedback:
-                        audit.score === 1
-                            ? metric.positiveText
-                            : metric.negativeText, // Use positiveText if score is 1, otherwise negativeText
-                    score: audit.score ?? null, // Use the score from the database or set to `null`
-                };
-            } else {
-                console.warn(`[Warning] Metric ${metric.id} not found for reportId: ${reportId}`);
-                return {
-                    id: metric.id,
-                    name: metric.name,
-                    tooltip: metric.tooltip, // Include the tooltip even if data is not available
-                    feedback: "Metric data is not available.",
-                    score: null,
-                };
-            }
-        });
-
-        // Format the final response
         const responseData = {
             url: report.url,
-            metrics,
+            seoScore: seoScore !== null ? seoScore * 100 : null,
             createdAt: report.createdAt,
+            metrics,
         };
 
-        console.log(`[Debug] Successfully fetched SEO metrics for reportId: ${reportId}`);
         res.status(200).json(responseData);
     } catch (error) {
-        console.error("[Get SEO Metrics Error]", error instanceof Error ? error.message : "Unknown error");
-        res.status(500).json({ message: "Failed to fetch the SEO metrics." });
+        res.status(500).json({ message: "Failed to fetch the mobile SEO metrics." });
     }
 };
 
-// Controller to fetch multiple SEO metrics for desktop by report ID
 export const getDesktopSEOMetrics = async (req: Request, res: Response): Promise<void> => {
     const { reportId } = req.params;
 
-    console.log(`[Debug] Fetching desktop SEO metrics for reportId: ${reportId}`);
-
-    // Validate if the `reportId` is a valid MongoDB ObjectId
     if (!mongoose.Types.ObjectId.isValid(reportId)) {
-        console.error(`[Error] Invalid reportId format: ${reportId}`);
         res.status(400).json({ message: "Invalid report ID format." });
         return;
     }
 
     try {
-        // Query the `reports` collection for the specified `reportId`
-        const report = await Report.findById(reportId).select("url desktopReport createdAt");
+        const report = (await Report.findById(reportId).select(
+            "url desktopReport createdAt"
+        )) as ReportWithLighthouse;
 
-        // Check if the report exists
         if (!report) {
-            console.warn(`[Warning] Report not found for reportId: ${reportId}`);
             res.status(404).json({ message: "Report not found." });
             return;
         }
 
-        // Cast `desktopReport` to `any` to avoid TypeScript errors
-        const desktopReport: any = report.desktopReport;
+        const audits = report.desktopReport?.lighthouseResult?.audits || {};
+        const seoScore = report.desktopReport?.lighthouseResult?.categories?.seo?.score || null;
+        const metrics = categorizeSEOMetrics(audits);
 
-        // Initialize the response object for metrics
-        const metrics = seoMetricsConstants.map((metric) => {
-            const audit = desktopReport?.lighthouseResult?.audits?.[metric.id];
-
-            if (audit) {
-                return {
-                    id: metric.id,
-                    name: metric.name,
-                    tooltip: metric.tooltip, // Include the tooltip from the constants
-                    feedback:
-                        audit.score === 1
-                            ? metric.positiveText
-                            : metric.negativeText, // Use positiveText if score is 1, otherwise negativeText
-                    score: audit.score ?? null, // Use the score from the database or set to `null`
-                };
-            } else {
-                console.warn(`[Warning] Metric ${metric.id} not found for reportId: ${reportId}`);
-                return {
-                    id: metric.id,
-                    name: metric.name,
-                    tooltip: metric.tooltip, // Include the tooltip even if data is not available
-                    feedback: "Metric data is not available.",
-                    score: null,
-                };
-            }
-        });
-
-        // Format the final response
         const responseData = {
             url: report.url,
-            metrics,
+            seoScore: seoScore !== null ? seoScore * 100 : null,
             createdAt: report.createdAt,
+            metrics,
         };
 
-        console.log(`[Debug] Successfully fetched desktop SEO metrics for reportId: ${reportId}`);
         res.status(200).json(responseData);
     } catch (error) {
-        console.error("[Get Desktop SEO Metrics Error]", error instanceof Error ? error.message : "Unknown error");
         res.status(500).json({ message: "Failed to fetch the desktop SEO metrics." });
     }
 };

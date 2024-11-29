@@ -1,5 +1,6 @@
 // src/constants/seoMetricsConstants.ts
 
+
 export const seoMetricsConstants = [
     {
         id: "is-crawlable",
@@ -7,6 +8,7 @@ export const seoMetricsConstants = [
         positiveText: "All pages are crawlable by search engines, ensuring visibility and proper indexing.",
         negativeText: "Some pages are not crawlable, which may prevent search engines from properly indexing your site.",
         tooltip: "Crawlability ensures search engines can access and index your pages, impacting visibility in search results.",
+        priority: "Critical",
     },
     {
         id: "document-title",
@@ -14,6 +16,7 @@ export const seoMetricsConstants = [
         positiveText: "The document title is present and well-optimized to improve user engagement and search engine ranking.",
         negativeText: "The document title is missing or poorly optimized, which can negatively affect user experience and ranking.",
         tooltip: "A clear and concise document title improves SEO and helps users understand the content of the page.",
+        priority: "High",
     },
     {
         id: "meta-description",
@@ -21,6 +24,7 @@ export const seoMetricsConstants = [
         positiveText: "Your meta description is present, well-written, and within the recommended length.",
         negativeText: "The meta description is either missing or too long/short, which may reduce click-through rates.",
         tooltip: "Meta descriptions summarize the page content in search results and encourage users to click.",
+        priority: "Medium",
     },
     {
         id: "http-status-code",
@@ -28,6 +32,7 @@ export const seoMetricsConstants = [
         positiveText: "All pages are returning appropriate HTTP status codes, ensuring smooth user and search engine experience.",
         negativeText: "Some pages are returning incorrect HTTP status codes, which may hinder user access or search engine indexing.",
         tooltip: "Correct HTTP status codes ensure pages are accessible and properly indexed by search engines.",
+        priority: "Critical",
     },
     {
         id: "link-text",
@@ -35,6 +40,7 @@ export const seoMetricsConstants = [
         positiveText: "All links on the page have descriptive text, improving navigation and accessibility.",
         negativeText: "Some links lack descriptive text, which can confuse users and impair accessibility.",
         tooltip: "Descriptive link text improves usability and helps users and search engines understand link destinations.",
+        priority: "Medium",
     },
     {
         id: "crawlable-anchors",
@@ -42,6 +48,7 @@ export const seoMetricsConstants = [
         positiveText: "All anchor tags are crawlable, ensuring search engines can follow and index them properly.",
         negativeText: "Some anchor tags are not crawlable, which may prevent search engines from discovering linked content.",
         tooltip: "Crawlable anchors ensure search engines can follow internal links and index important pages.",
+        priority: "High",
     },
     {
         id: "robots-txt",
@@ -49,6 +56,7 @@ export const seoMetricsConstants = [
         positiveText: "Your robots.txt file is correctly configured, allowing proper crawling of your site.",
         negativeText: "Your robots.txt file has issues, potentially blocking search engines from important pages.",
         tooltip: "Robots.txt provides crawling instructions to search engines, ensuring the right pages are indexed.",
+        priority: "Critical",
     },
     {
         id: "image-alt",
@@ -56,6 +64,7 @@ export const seoMetricsConstants = [
         positiveText: "All images have alt attributes, improving accessibility and helping search engines understand your content.",
         negativeText: "Some images are missing alt attributes, which may impact accessibility and image SEO.",
         tooltip: "Alt attributes describe images for visually impaired users and improve image search engine optimization.",
+        priority: "Medium",
     },
     {
         id: "hreflang",
@@ -63,6 +72,7 @@ export const seoMetricsConstants = [
         positiveText: "Hreflang attributes are properly implemented, ensuring correct language targeting for users.",
         negativeText: "Hreflang attributes are missing or misconfigured, which may confuse search engines about language targeting.",
         tooltip: "Hreflang attributes help search engines serve the correct language or regional version of a page to users.",
+        priority: "High",
     },
     {
         id: "canonical",
@@ -70,6 +80,7 @@ export const seoMetricsConstants = [
         positiveText: "Canonical tags are correctly implemented, preventing duplicate content issues.",
         negativeText: "Canonical tags are missing or incorrect, which may cause duplicate content problems.",
         tooltip: "Canonical tags indicate the preferred version of a page, helping search engines avoid duplicate content.",
+        priority: "High",
     },
     {
         id: "structured-data",
@@ -77,5 +88,6 @@ export const seoMetricsConstants = [
         positiveText: "Structured data is correctly implemented, improving chances for rich results in search engines.",
         negativeText: "Structured data is missing or has errors, which may reduce eligibility for rich snippets.",
         tooltip: "Structured data helps search engines understand your content and display rich results in search.",
+        priority: "Medium",
     },
 ];

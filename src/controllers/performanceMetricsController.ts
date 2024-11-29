@@ -1,46 +1,114 @@
 // src/controllers/performanceMetricsController.ts
 
+
 import { Request, Response } from "express";
 import mongoose from "mongoose";
 import { Report } from "../models/reportModel";
 import { performanceMetricsConstants } from "../constants/performanceMetricsConstants";
 
-// Helper function to process performance metrics
+// Define the type for priority
+type Priority = "Critical" | "High" | "Medium" | "Low";
+
+// Define the type for metric data
+interface MetricData {
+    id: string;
+    name: string;
+    tooltip: string;
+    feedback: string;
+    score: number | null;
+    priority: Priority;
+    displayValue: string | null;
+    description: string | null;
+    numericValue: number | null;
+    details?: any; // Optional field
+}
+
+// Helper function to process and sort metrics
 const processPerformanceMetrics = (reportData: any, reportId: string) => {
-    return performanceMetricsConstants.map((metric) => {
+    const failedMetrics: MetricData[] = [];
+    const passedMetrics: MetricData[] = [];
+    const manualCheckMetrics: MetricData[] = [];
+
+    // Define priority order for sorting
+    const priorityOrder: Record<Priority, number> = {
+        Critical: 1,
+        High: 2,
+        Medium: 3,
+        Low: 4,
+    };
+
+    performanceMetricsConstants.forEach((metric) => {
         const audit = reportData?.lighthouseResult?.audits?.[metric.id];
 
-        if (audit) {
-            return {
-                id: metric.id,
-                name: metric.name,
-                tooltip: metric.tooltip, // Include the tooltip from the constants
-                feedback:
-                    audit.score === 1
-                        ? metric.positiveText
-                        : metric.negativeText, // Use positiveText if score is 1, otherwise negativeText
-                score: audit.score ?? null, // Use the score from the database or set to `null`
-            };
+        // Only add `details` if it exists in the audit
+        const metricData: MetricData = {
+            id: metric.id,
+            name: metric.name,
+            tooltip: metric.tooltip,
+            feedback:
+                audit?.score === 1
+                    ? metric.positiveText
+                    : metric.negativeText,
+            score: audit?.score ?? null,
+            priority: metric.priority as Priority,
+            displayValue: audit?.displayValue || null,
+            description: audit?.description || null,
+            numericValue: audit?.numericValue || null,
+        };
+
+        // Conditionally add the details field
+        if (audit?.details) {
+            metricData.details = audit.details;
+        }
+
+        if (audit?.score === 1) {
+            passedMetrics.push(metricData);
+        } else if (audit?.score === 0) {
+            failedMetrics.push(metricData);
         } else {
-            console.warn(`[Warning] Metric ${metric.id} not found for reportId: ${reportId}`);
-            return {
-                id: metric.id,
-                name: metric.name,
-                tooltip: metric.tooltip, // Include the tooltip even if data is not available
-                feedback: "Metric data is not available.",
-                score: null,
-            };
+            manualCheckMetrics.push(metricData);
         }
     });
+
+    // Move metrics with `details.items` having 1 or more items from `manualCheckMetrics` to `failedMetrics`
+    const metricsToMove = manualCheckMetrics.filter(
+        (metric) => metric.details?.items && metric.details.items.length > 0
+    );
+    failedMetrics.push(...metricsToMove);
+
+    // Remove moved metrics from `manualCheckMetrics`
+    const updatedManualCheckMetrics = manualCheckMetrics.filter(
+        (metric) => !(metric.details?.items && metric.details.items.length > 0)
+    );
+
+    // Sort failedMetrics by priority
+    failedMetrics.sort(
+        (a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]
+    );
+
+    // Sort passedMetrics by priority
+    passedMetrics.sort(
+        (a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]
+    );
+
+    return {
+        failedMetrics,
+        passedMetrics,
+        manualCheckMetrics: updatedManualCheckMetrics,
+    };
 };
 
+
+
 // Controller to fetch mobile performance metrics by report ID
-export const getMobilePerformanceMetrics = async (req: Request, res: Response): Promise<void> => {
+export const getMobilePerformanceMetrics = async (
+    req: Request,
+    res: Response
+): Promise<void> => {
     const { reportId } = req.params;
 
     console.log(`[Debug] Fetching Mobile Performance metrics for reportId: ${reportId}`);
 
-    // Validate if the `reportId` is a valid MongoDB ObjectId
     if (!mongoose.Types.ObjectId.isValid(reportId)) {
         console.error(`[Error] Invalid reportId format: ${reportId}`);
         res.status(400).json({ message: "Invalid report ID format." });
@@ -48,26 +116,28 @@ export const getMobilePerformanceMetrics = async (req: Request, res: Response): 
     }
 
     try {
-        // Query the `reports` collection for the specified `reportId`
         const report = await Report.findById(reportId).select("url mobileReport createdAt");
 
-        // Check if the report exists
         if (!report) {
             console.warn(`[Warning] Report not found for reportId: ${reportId}`);
             res.status(404).json({ message: "Report not found." });
             return;
         }
 
-        // Cast `mobileReport` to `any` to avoid TypeScript errors
         const mobileReport: any = report.mobileReport;
+        const { failedMetrics, passedMetrics, manualCheckMetrics } =
+            processPerformanceMetrics(mobileReport, reportId);
+        const performanceScore =
+            mobileReport?.lighthouseResult?.categories?.performance?.score || null;
 
-        // Process the metrics
-        const metrics = processPerformanceMetrics(mobileReport, reportId);
-
-        // Format the final response
         const responseData = {
             url: report.url,
-            metrics,
+            performanceScore,
+            metrics: {
+                failedMetrics,
+                passedMetrics,
+                manualCheckMetrics,
+            },
             createdAt: report.createdAt,
         };
 
@@ -80,12 +150,14 @@ export const getMobilePerformanceMetrics = async (req: Request, res: Response): 
 };
 
 // Controller to fetch desktop performance metrics by report ID
-export const getDesktopPerformanceMetrics = async (req: Request, res: Response): Promise<void> => {
+export const getDesktopPerformanceMetrics = async (
+    req: Request,
+    res: Response
+): Promise<void> => {
     const { reportId } = req.params;
 
     console.log(`[Debug] Fetching Desktop Performance metrics for reportId: ${reportId}`);
 
-    // Validate if the `reportId` is a valid MongoDB ObjectId
     if (!mongoose.Types.ObjectId.isValid(reportId)) {
         console.error(`[Error] Invalid reportId format: ${reportId}`);
         res.status(400).json({ message: "Invalid report ID format." });
@@ -93,26 +165,28 @@ export const getDesktopPerformanceMetrics = async (req: Request, res: Response):
     }
 
     try {
-        // Query the `reports` collection for the specified `reportId`
         const report = await Report.findById(reportId).select("url desktopReport createdAt");
 
-        // Check if the report exists
         if (!report) {
             console.warn(`[Warning] Report not found for reportId: ${reportId}`);
             res.status(404).json({ message: "Report not found." });
             return;
         }
 
-        // Cast `desktopReport` to `any` to avoid TypeScript errors
         const desktopReport: any = report.desktopReport;
+        const { failedMetrics, passedMetrics, manualCheckMetrics } =
+            processPerformanceMetrics(desktopReport, reportId);
+        const performanceScore =
+            desktopReport?.lighthouseResult?.categories?.performance?.score || null;
 
-        // Process the metrics
-        const metrics = processPerformanceMetrics(desktopReport, reportId);
-
-        // Format the final response
         const responseData = {
             url: report.url,
-            metrics,
+            performanceScore,
+            metrics: {
+                failedMetrics,
+                passedMetrics,
+                manualCheckMetrics,
+            },
             createdAt: report.createdAt,
         };
 
