@@ -1,5 +1,6 @@
 // src/controllers/reportController.ts
 
+
 import { AuthRequest } from "../middleware/authMiddleware";
 import { Response } from "express";
 import axios from "axios";
@@ -9,7 +10,6 @@ import { ReportAnalysis } from "../models/AnalysisReportModel";
 
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
 const PAGE_SPEED_API_URL = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed";
-
 
 // Helper function to fetch full data from Google PageSpeed API
 const fetchFullReport = async (strategy: "mobile" | "desktop", url: string) => {
@@ -111,7 +111,6 @@ export const getUserUrls = async (req: AuthRequest, res: Response): Promise<void
     try {
         const urlData = await Report.aggregate([
             { $match: { userId } },
-            { $sort: { createdAt: -1 } },
             {
                 $group: {
                     _id: "$url",
@@ -132,8 +131,7 @@ export const getUserUrls = async (req: AuthRequest, res: Response): Promise<void
                     desktopScore: { $multiply: ["$desktopReport.lighthouseResult.categories.performance.score", 100] },
                 },
             },
-        ])
-            .allowDiskUse(true); // Enable disk use for sorting and grouping
+        ]).allowDiskUse(true); // Enable disk use for grouping
 
         console.log('[Debug] Aggregation result:', urlData);
 
