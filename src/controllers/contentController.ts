@@ -1,86 +1,74 @@
 // src/controllers/contentController.ts
 
 import { Request, Response } from "express";
-import { scrapeContent } from "../services/scraper";
-import ContentModel from "../models/ContentModel";
-import { ReportAnalysis } from "../models/AnalysisReportModel";
-import { AuthRequest } from "../middleware/authMiddleware";
+import axios from "axios";
+import * as cheerio from "cheerio"; // Updated import
 
-export const getContent = async (req: AuthRequest, res: Response): Promise<void> => {
-    const { url } = req.body;
+/**
+ * Controller to fetch and extract content & metadata from a URL
+ */
+export const getContent = async (req: Request, res: Response): Promise<void> => {
+    const { url } = req.query;
 
-    console.log(`[Debug] Received request to extract content for URL: ${url}`);
-
-    // Validate the URL
     if (!url || typeof url !== "string") {
-        console.error("[Error] Invalid URL received.");
-        res.status(400).json({ message: "A valid URL is required." });
-        return;
-    }
-
-    // Extract `userId` from `req.user`
-    const userId = req.user?.userId;
-
-    // Validate the userId
-    if (!userId) {
-        console.warn("[Warning] No user ID found in the request.");
-        res.status(401).json({ message: "Unauthorized request." });
+        res.status(400).json({ error: "Invalid or missing 'url' query parameter" });
         return;
     }
 
     try {
-        // Extract content using the `scrapeContent` service
-        const { tags, counts, analysis, content } = await scrapeContent(url);
-
-        // Save the content analysis to the database
-        const contentRecord = new ContentModel({
-            userId, // Use the extracted userId
-            url,
-            tags,
-            counts,
-            analysis,
-            content,
+        const response = await axios.get(url, {
+            timeout: 10000,
+            headers: {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+            },
         });
 
-        await contentRecord.save();
-        console.log(`[Debug] Content details saved to the database for user: ${userId}`);
+        if (!response.headers['content-type']?.includes("text/html")) {
+            throw new Error("The provided URL did not return an HTML response.");
+        }
 
-        // Save the `_id` of the content record to the `AnalysisReport` model
-        const analysisReport = await ReportAnalysis.findOneAndUpdate(
-            { userId, url }, // Match by userId and url
-            {
-                $set: {
-                    "analyses.contentAnalysis.status": "completed",
-                    "analyses.contentAnalysis.contentAnalysisId": contentRecord._id,
-                },
-            },
-            { new: true, upsert: true } // Create if not found
-        );
+        const htmlContent = response.data;
+        const $ = cheerio.load(htmlContent);
 
-        console.log(`[Debug] ReportAnalysis updated with ContentAnalysis ID: ${contentRecord._id}`);
+        const metadata = {
+            title: $("title").text() || null,
+            description: $('meta[name="description"]').attr("content") || null,
+            keywords: $('meta[name="keywords"]').attr("content") || null,
+            ogTitle: $('meta[property="og:title"]').attr("content") || null,
+            ogDescription: $('meta[property="og:description"]').attr("content") || null,
+            ogImage: $('meta[property="og:image"]').attr("content") || null,
+        };
 
-        // Send the response
+        const textContent = $("body").text().trim();
+
         res.status(200).json({
-            message: "Content extracted successfully",
-            data: { tags, counts, analysis, content },
+            url,
+            metadata,
+            textContent,
         });
     } catch (error) {
-        console.error("[Error] Failed to extract content.", error);
+        if (axios.isAxiosError(error)) {
+            console.error("Axios Error Details:", {
+                message: error.message,
+                responseData: error.response?.data,
+                status: error.response?.status,
+                headers: error.response?.headers,
+            });
 
-        // Update `AnalysisReport` with failure status
-        await ReportAnalysis.findOneAndUpdate(
-            { userId, url },
-            {
-                $set: {
-                    "analyses.contentAnalysis.status": "failed",
-                    "analyses.contentAnalysis.error": error instanceof Error ? error.message : "Unknown error",
-                },
-            },
-            { upsert: true } // Create a new `AnalysisReport` if one doesn't exist
-        );
+            if (error.response?.status === 503) {
+                res.status(503).json({
+                    error: "Service Unavailable",
+                    details: "The requested website is temporarily unavailable (503).",
+                });
+                return;
+            }
+        }
+
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
 
         res.status(500).json({
-            message: "Failed to scrape and analyze content.",
+            error: "Failed to fetch content from the provided URL",
+            details: errorMessage,
         });
     }
 };
