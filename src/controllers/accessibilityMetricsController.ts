@@ -5,33 +5,68 @@ import mongoose from "mongoose";
 import { Report } from "../models/reportModel";
 import { accessibilityMetricsConstants } from "../constants/accessibilityMetricsConstants"; // Import Accessibility metrics constants
 
+interface Metric {
+    id: string;
+    name: string;
+    tooltip: string;
+    feedback: string;
+    score: number | null;
+}
+
 // Helper function to process Accessibility metrics
-const processAccessibilityMetrics = (reportData: any, reportId: string) => {
-    return accessibilityMetricsConstants.map((metric) => {
+const processAccessibilityMetrics = (reportData: any, reportId: string): {
+    failedMetrics: Metric[];
+    passedMetrics: Metric[];
+    manualCheckMetrics: Metric[];
+    accessibilityScore: number | null;
+} => {
+    const failedMetrics: Metric[] = [];
+    const passedMetrics: Metric[] = [];
+    const manualCheckMetrics: Metric[] = [];
+    let totalScore = 0;
+    let validScoresCount = 0;
+
+    accessibilityMetricsConstants.forEach((metric) => {
         const audit = reportData?.lighthouseResult?.audits?.[metric.id];
 
         if (audit) {
-            return {
+            const metricData: Metric = {
                 id: metric.id,
                 name: metric.name,
-                tooltip: metric.tooltip, // Include the tooltip from the constants
-                feedback:
-                    audit.score === 1
-                        ? metric.positiveText
-                        : metric.negativeText, // Use positiveText if score is 1, otherwise negativeText
-                score: audit.score ?? null, // Use the score from the database or set to `null`
+                tooltip: metric.tooltip,
+                feedback: audit.score === 1 ? metric.positiveText : metric.negativeText,
+                score: audit.score ?? null,
             };
+
+            if (audit.score === 1) {
+                passedMetrics.push(metricData);
+            } else if (audit.score === null) {
+                manualCheckMetrics.push(metricData);
+            } else {
+                failedMetrics.push(metricData);
+            }
+
+            // Calculate Accessibility Score
+            if (audit.score !== null) {
+                totalScore += audit.score;
+                validScoresCount++;
+            }
         } else {
             console.warn(`[Warning] Metric ${metric.id} not found for reportId: ${reportId}`);
-            return {
+            manualCheckMetrics.push({
                 id: metric.id,
                 name: metric.name,
-                tooltip: metric.tooltip, // Include the tooltip even if data is not available
+                tooltip: metric.tooltip,
                 feedback: "Metric data is not available.",
                 score: null,
-            };
+            });
         }
     });
+
+    // Calculate the average score (Accessibility Score)
+    const accessibilityScore = validScoresCount > 0 ? Math.round((totalScore / validScoresCount) * 100) : null;
+
+    return { failedMetrics, passedMetrics, manualCheckMetrics, accessibilityScore };
 };
 
 // Controller to fetch mobile Accessibility metrics by report ID
@@ -40,7 +75,6 @@ export const getMobileAccessibilityMetrics = async (req: Request, res: Response)
 
     console.log(`[Debug] Fetching Mobile Accessibility metrics for reportId: ${reportId}`);
 
-    // Validate if the `reportId` is a valid MongoDB ObjectId
     if (!mongoose.Types.ObjectId.isValid(reportId)) {
         console.error(`[Error] Invalid reportId format: ${reportId}`);
         res.status(400).json({ message: "Invalid report ID format." });
@@ -48,26 +82,25 @@ export const getMobileAccessibilityMetrics = async (req: Request, res: Response)
     }
 
     try {
-        // Query the `reports` collection for the specified `reportId`
         const report = await Report.findById(reportId).select("url mobileReport createdAt");
 
-        // Check if the report exists
         if (!report) {
             console.warn(`[Warning] Report not found for reportId: ${reportId}`);
             res.status(404).json({ message: "Report not found." });
             return;
         }
 
-        // Cast `mobileReport` to `any` to avoid TypeScript errors
         const mobileReport: any = report.mobileReport;
 
-        // Process the metrics
-        const metrics = processAccessibilityMetrics(mobileReport, reportId);
+        const { failedMetrics, passedMetrics, manualCheckMetrics, accessibilityScore } =
+            processAccessibilityMetrics(mobileReport, reportId);
 
-        // Format the final response
         const responseData = {
             url: report.url,
-            metrics,
+            accessibilityScore,
+            failedMetrics,
+            passedMetrics,
+            manualCheckMetrics,
             createdAt: report.createdAt,
         };
 
@@ -85,7 +118,6 @@ export const getDesktopAccessibilityMetrics = async (req: Request, res: Response
 
     console.log(`[Debug] Fetching Desktop Accessibility metrics for reportId: ${reportId}`);
 
-    // Validate if the `reportId` is a valid MongoDB ObjectId
     if (!mongoose.Types.ObjectId.isValid(reportId)) {
         console.error(`[Error] Invalid reportId format: ${reportId}`);
         res.status(400).json({ message: "Invalid report ID format." });
@@ -93,26 +125,25 @@ export const getDesktopAccessibilityMetrics = async (req: Request, res: Response
     }
 
     try {
-        // Query the `reports` collection for the specified `reportId`
         const report = await Report.findById(reportId).select("url desktopReport createdAt");
 
-        // Check if the report exists
         if (!report) {
             console.warn(`[Warning] Report not found for reportId: ${reportId}`);
             res.status(404).json({ message: "Report not found." });
             return;
         }
 
-        // Cast `desktopReport` to `any` to avoid TypeScript errors
         const desktopReport: any = report.desktopReport;
 
-        // Process the metrics
-        const metrics = processAccessibilityMetrics(desktopReport, reportId);
+        const { failedMetrics, passedMetrics, manualCheckMetrics, accessibilityScore } =
+            processAccessibilityMetrics(desktopReport, reportId);
 
-        // Format the final response
         const responseData = {
             url: report.url,
-            metrics,
+            accessibilityScore,
+            failedMetrics,
+            passedMetrics,
+            manualCheckMetrics,
             createdAt: report.createdAt,
         };
 
