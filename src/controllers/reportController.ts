@@ -10,8 +10,6 @@ import { ReportAnalysis } from "../models/AnalysisReportModel";
 const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
 const PAGE_SPEED_API_URL = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed";
 
-// Helper function to fetch full data from Google PageSpeed API
-// src/controllers/reportController.ts
 
 // Helper function to fetch full data from Google PageSpeed API
 const fetchFullReport = async (strategy: "mobile" | "desktop", url: string) => {
@@ -134,7 +132,8 @@ export const getUserUrls = async (req: AuthRequest, res: Response): Promise<void
                     desktopScore: { $multiply: ["$desktopReport.lighthouseResult.categories.performance.score", 100] },
                 },
             },
-        ]).allowDiskUse(true);
+        ])
+            .allowDiskUse(true); // Enable disk use for sorting and grouping
 
         console.log('[Debug] Aggregation result:', urlData);
 
@@ -145,12 +144,11 @@ export const getUserUrls = async (req: AuthRequest, res: Response): Promise<void
 
         res.status(200).json(urlData);
     } catch (error) {
-        if (error instanceof Error) {
-            console.error('[Get User URLs Error]', error.message);
-        } else {
-            console.error('[Get User URLs Error]', error);
-        }
-        res.status(500).json({ message: 'Failed to fetch user reports.' });
+        console.error('[Get User URLs Error]', error instanceof Error ? error.message : error);
+        res.status(500).json({
+            message: 'Failed to fetch user reports.',
+            error: error instanceof Error ? error.message : 'Unknown error',
+        });
     }
 };
 
