@@ -2,57 +2,39 @@
 
 import mongoose, { Schema, Document } from "mongoose";
 
-// Define the ContentDocument interface for TypeScript
-export interface ContentDocument extends Document {
-    url: string; // URL of the page being analyzed
-    tags: { tag: string; text: string }[]; // Tags and their associated text
-    counts: Record<string, number>; // Counts of various elements
-    analysis: {
-        wordCount: number; // Total word count
-        wordFrequencies: Record<string, number>; // Frequency of each word
-        nGramCounts: Record<string, Record<string, number>>; // N-gram counts (e.g., 2-word, 3-word, etc.)
-        sentiment: Record<string, any>; // Sentiment analysis results
-        readingTime: string; // Estimated reading time
+// Define the Content interface
+export interface IContent extends Document {
+    url: string;
+    metadata: {
+        title: string | null;
+        description: string | null;
+        keywords: string | null;
+        ogTitle: string | null;
+        ogDescription: string | null;
+        ogImage: string | null;
     };
-    content: {
-        introduction: string[]; // List of introduction paragraphs
-        mainContent: string[]; // List of main content paragraphs
-        listItems: string[]; // List of items (e.g., bullet points)
-        footerContent: string[]; // List of footer content paragraphs
-    };
+    favicon: string | null;
+    textContent: string;
+    dynamic: boolean;
+    createdAt: Date;
 }
 
 // Define the Content schema
-const ContentSchema = new Schema<ContentDocument>(
-    {
-        url: { type: String, required: true }, // URL of the analyzed page
-        tags: [
-            {
-                tag: { type: String, required: true }, // Tag name (e.g., "h1", "p", "span")
-                text: { type: String, required: true }, // Text content inside the tag
-            },
-        ],
-        counts: { type: Map, of: Number, required: true }, // Element counts (e.g., number of paragraphs, links, etc.)
-        analysis: {
-            wordCount: { type: Number, required: true }, // Total word count
-            wordFrequencies: { type: Map, of: Number, required: true }, // Frequency of each word
-            nGramCounts: {
-                "2-word": { type: Map, of: Number }, // Counts for 2-word combinations
-                "3-word": { type: Map, of: Number }, // Counts for 3-word combinations
-                "4-word": { type: Map, of: Number }, // Counts for 4-word combinations
-            },
-            sentiment: { type: Object, required: true }, // Sentiment analysis result (e.g., positive/negative/neutral)
-            readingTime: { type: String, required: true }, // Estimated reading time for the content
-        },
-        content: {
-            introduction: { type: [String], default: [] }, // Introduction paragraphs
-            mainContent: { type: [String], default: [] }, // Main content paragraphs
-            listItems: { type: [String], default: [] }, // List items (e.g., from bullet points)
-            footerContent: { type: [String], default: [] }, // Footer content paragraphs
-        },
+const ContentSchema = new Schema<IContent>({
+    url: { type: String, required: true },
+    metadata: {
+        title: { type: String, default: null },
+        description: { type: String, default: null },
+        keywords: { type: String, default: null },
+        ogTitle: { type: String, default: null },
+        ogDescription: { type: String, default: null },
+        ogImage: { type: String, default: null },
     },
-    { timestamps: true } // Automatically adds `createdAt` and `updatedAt` fields
-);
+    favicon: { type: String, default: null },
+    textContent: { type: String, required: true },
+    dynamic: { type: Boolean, required: true },
+    createdAt: { type: Date, default: Date.now },
+});
 
-// Export the Content model
-export default mongoose.model<ContentDocument>("Content", ContentSchema);
+// Create the Content model
+export const Content = mongoose.model<IContent>("Content", ContentSchema);
