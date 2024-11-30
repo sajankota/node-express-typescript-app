@@ -30,6 +30,7 @@ export const getContent = async (req: Request, res: Response): Promise<void> => 
         const htmlContent = response.data;
         const $ = cheerio.load(htmlContent);
 
+        // Extract metadata
         const metadata = {
             title: $("title").text() || null,
             description: $('meta[name="description"]').attr("content") || null,
@@ -39,11 +40,22 @@ export const getContent = async (req: Request, res: Response): Promise<void> => 
             ogImage: $('meta[property="og:image"]').attr("content") || null,
         };
 
+        // Extract text content
         const textContent = $("body").text().trim();
+
+        // Check for favicon
+        let favicon = $('link[rel="icon"]').attr("href") || $('link[rel="shortcut icon"]').attr("href") || null;
+
+        // Resolve relative favicon URLs to absolute URLs
+        if (favicon && !favicon.startsWith("http") && !favicon.startsWith("//")) {
+            const urlObj = new URL(url);
+            favicon = new URL(favicon, urlObj.origin).href;
+        }
 
         res.status(200).json({
             url,
             metadata,
+            favicon, // Add favicon to the response
             textContent,
         });
     } catch (error) {
