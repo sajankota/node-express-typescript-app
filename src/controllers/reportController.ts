@@ -1,5 +1,6 @@
 // src/controllers/reportController.ts
 
+
 import { AuthRequest } from "../middleware/authMiddleware";
 import { Response } from "express";
 import axios from "axios";
@@ -12,13 +13,26 @@ const PAGE_SPEED_API_URL = "https://www.googleapis.com/pagespeedonline/v5/runPag
 
 // Helper function to fetch full data from Google PageSpeed API
 const fetchFullReport = async (strategy: "mobile" | "desktop", url: string) => {
+    if (!GOOGLE_API_KEY) {
+        throw new Error("Google API key is missing. Please set GOOGLE_API_KEY in your environment.");
+    }
+
     const categories = ["performance", "accessibility", "best-practices", "seo", "pwa"];
     const categoryParams = categories.map((c) => `category=${c}`).join("&");
     const requestUrl = `${PAGE_SPEED_API_URL}?url=${encodeURIComponent(url)}&key=${GOOGLE_API_KEY}&strategy=${strategy}&${categoryParams}`;
 
     console.log(`[API Call] Fetching ${strategy} report for URL: ${url}`);
-    const response = await axios.get(requestUrl);
-    return response.data;
+    try {
+        const response = await axios.get(requestUrl);
+        return response.data;
+    } catch (error) {
+        if (error instanceof Error) {
+            console.error(`[Error] Failed to fetch ${strategy} report:`, error.message);
+        } else {
+            console.error(`[Error] Failed to fetch ${strategy} report:`, error);
+        }
+        throw new Error(`Failed to fetch ${strategy} report for URL: ${url}`);
+    }
 };
 
 // Generate a new PageSpeed report
@@ -34,13 +48,11 @@ export const generateReport = async (req: AuthRequest, res: Response): Promise<v
     }
 
     try {
-        // Fetch PageSpeed data
         const [mobileReport, desktopReport] = await Promise.all([
             fetchFullReport("mobile", url),
             fetchFullReport("desktop", url),
         ]);
 
-        // Save the PageSpeed report in the `Report` model
         const pageSpeedRecord = await Report.create({
             userId,
             url,
@@ -50,35 +62,36 @@ export const generateReport = async (req: AuthRequest, res: Response): Promise<v
 
         console.log(`[Debug] PageSpeed report saved with ID: ${pageSpeedRecord._id}`);
 
-        // Update or create an entry in the `ReportAnalysis` model for this user and URL
         const analysisReport = await ReportAnalysis.findOneAndUpdate(
-            { userId, url }, // Match by userId and url
+            { userId, url },
             {
                 $set: {
                     "analyses.pageSpeed.status": "completed",
                     "analyses.pageSpeed.pageSpeedId": pageSpeedRecord._id,
                 },
             },
-            { new: true, upsert: true } // Create if not found
+            { new: true, upsert: true }
         );
 
         console.log(`[Debug] ReportAnalysis updated with PageSpeed ID: ${pageSpeedRecord._id}`);
-
         res.status(201).json({ message: "PageSpeed report generated successfully", pageSpeedRecord });
     } catch (error) {
-        console.error("[Error] Failed to generate PageSpeed report:", error);
+        if (error instanceof Error) {
+            console.error("[Error] Failed to generate PageSpeed report:", error.message);
 
-        // Update `ReportAnalysis` to reflect the error
-        await ReportAnalysis.findOneAndUpdate(
-            { userId, url },
-            {
-                $set: {
-                    "analyses.pageSpeed.status": "failed",
-                    "analyses.pageSpeed.error": error instanceof Error ? error.message : "Unknown error",
+            await ReportAnalysis.findOneAndUpdate(
+                { userId, url },
+                {
+                    $set: {
+                        "analyses.pageSpeed.status": "failed",
+                        "analyses.pageSpeed.error": error.message,
+                    },
                 },
-            },
-            { upsert: true } // Create if not found
-        );
+                { upsert: true }
+            );
+        } else {
+            console.error("[Error] Failed to generate PageSpeed report:", error);
+        }
 
         res.status(500).json({ message: "Failed to generate PageSpeed report." });
     }
@@ -88,55 +101,54 @@ export const generateReport = async (req: AuthRequest, res: Response): Promise<v
 export const getUserUrls = async (req: AuthRequest, res: Response): Promise<void> => {
     const userId = req.user?.userId;
 
-    console.log('[Debug] User ID from auth middleware:', userId); // Log the userId extracted from the token
+    console.log('[Debug] User ID from auth middleware:', userId);
 
     if (!userId) {
-        console.error('[Error] User ID is undefined in the request.');
         res.status(401).json({ message: 'Unauthorized. User ID is required.' });
         return;
     }
 
     try {
         const urlData = await Report.aggregate([
-            { $match: { userId } }, // Match reports for the current user
-            { $sort: { createdAt: -1 } }, // Sort reports by creation date (most recent first)
+            { $match: { userId } },
             {
                 $group: {
-                    _id: "$url", // Group by `url`
-                    url: { $first: "$url" }, // Include `url` field
-                    lastReportDate: { $first: "$createdAt" }, // Include the date of the most recent report for the URL
-                    mobileReport: { $first: "$mobileReport" }, // Include the mobile report data
-                    desktopReport: { $first: "$desktopReport" }, // Include the desktop report data
-                    reportId: { $first: "$_id" }, // Include the `_id` of the report as `reportId`
+                    _id: "$url",
+                    url: { $first: "$url" },
+                    lastReportDate: { $first: "$createdAt" },
+                    mobileReport: { $first: "$mobileReport" },
+                    desktopReport: { $first: "$desktopReport" },
+                    reportId: { $first: "$_id" },
                 },
             },
             {
                 $project: {
-                    _id: 0, // Exclude the default `_id` field from the response
+                    _id: 0,
                     url: 1,
-                    reportId: 1, // Add `reportId` to the response
+                    reportId: 1,
                     lastReportDate: 1,
                     mobileScore: { $multiply: ["$mobileReport.lighthouseResult.categories.performance.score", 100] },
                     desktopScore: { $multiply: ["$desktopReport.lighthouseResult.categories.performance.score", 100] },
                 },
             },
-        ]);
+        ]).allowDiskUse(true); // Enable disk use for grouping
 
         console.log('[Debug] Aggregation result:', urlData);
 
         if (!urlData.length) {
-            console.warn('[Warning] No reports found for the user.');
             res.status(200).json([]);
             return;
         }
 
-        res.status(200).json(urlData); // Send the updated response
+        res.status(200).json(urlData);
     } catch (error) {
         console.error('[Get User URLs Error]', error instanceof Error ? error.message : error);
-        res.status(500).json({ message: 'Failed to fetch user reports.' });
+        res.status(500).json({
+            message: 'Failed to fetch user reports.',
+            error: error instanceof Error ? error.message : 'Unknown error',
+        });
     }
 };
-
 
 // Fetch an individual PageSpeed report by ID
 export const getIndividualReport = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -150,9 +162,7 @@ export const getIndividualReport = async (req: AuthRequest, res: Response): Prom
         return;
     }
 
-    // Validate if the `id` is a valid MongoDB ObjectId
     if (!mongoose.Types.ObjectId.isValid(id)) {
-        console.error(`[Error] Invalid ID format: ${id}`);
         res.status(400).json({ message: "Invalid report ID format." });
         return;
     }
@@ -161,14 +171,17 @@ export const getIndividualReport = async (req: AuthRequest, res: Response): Prom
         const report = await Report.findOne({ _id: id, userId });
 
         if (!report) {
-            console.warn(`[Warning] Report not found for ID: ${id}, userId: ${userId}`);
             res.status(404).json({ message: "Report not found." });
             return;
         }
 
         res.status(200).json(report);
     } catch (error) {
-        console.error("[Get Individual Report Error]", error instanceof Error ? error.message : error);
+        if (error instanceof Error) {
+            console.error("[Get Individual Report Error]", error.message);
+        } else {
+            console.error("[Get Individual Report Error]", error);
+        }
         res.status(500).json({ message: "Failed to fetch the report." });
     }
 };
