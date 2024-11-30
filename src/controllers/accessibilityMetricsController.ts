@@ -3,7 +3,7 @@
 import { Request, Response } from "express";
 import mongoose from "mongoose";
 import { Report } from "../models/reportModel";
-import { accessibilityMetricsConstants } from "../constants/accessibilityMetricsConstants"; // Import Accessibility metrics constants
+import { accessibilityMetricsConstants } from "../constants/accessibilityMetricsConstants";
 
 interface Metric {
     id: string;
@@ -11,6 +11,8 @@ interface Metric {
     tooltip: string;
     feedback: string;
     score: number | null;
+    details?: any;
+    priority: string;
 }
 
 // Helper function to process Accessibility metrics
@@ -36,7 +38,14 @@ const processAccessibilityMetrics = (reportData: any, reportId: string): {
                 tooltip: metric.tooltip,
                 feedback: audit.score === 1 ? metric.positiveText : metric.negativeText,
                 score: audit.score ?? null,
+                priority: metric.priority,
             };
+
+            // Include `details` field if it exists in the `audit`
+            if (audit.details) {
+                console.log(`[Debug] Adding details for metric ${metric.id}`, audit.details);
+                metricData.details = audit.details;
+            }
 
             if (audit.score === 1) {
                 passedMetrics.push(metricData);
@@ -59,6 +68,7 @@ const processAccessibilityMetrics = (reportData: any, reportId: string): {
                 tooltip: metric.tooltip,
                 feedback: "Metric data is not available.",
                 score: null,
+                priority: metric.priority, // Add priority even if data is unavailable
             });
         }
     });
