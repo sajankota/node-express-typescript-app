@@ -120,7 +120,7 @@ export const getUserUrls = async (req: AuthRequest, res: Response): Promise<void
                     desktopScore: { $multiply: ["$desktopReport.lighthouseResult.categories.performance.score", 100] },
                 },
             },
-        ]);
+        ]).allowDiskUse(true); // Enable disk usage for sorting and grouping
 
         console.log('[Debug] Aggregation result:', urlData);
 
