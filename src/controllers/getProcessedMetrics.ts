@@ -1,7 +1,7 @@
 // src/controllers/getProcessedMetrics.ts
 
 import { Request, Response } from "express";
-import { Metrics } from "../models/MetricsModel"; // New metrics model
+import { Metrics } from "../models/MetricsModel";
 
 export const getProcessedMetrics = async (req: Request, res: Response): Promise<void> => {
     const { userId, url } = req.query; // Filters passed via query parameters

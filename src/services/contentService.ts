@@ -3,7 +3,8 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
 import puppeteer from "puppeteer";
-import { Content, IContent } from "../models/ContentModel"; // Import the Mongoose model and interface
+import { Content } from "../models/ContentModel"; // Import the Mongoose model
+import { triggerMetricProcessing } from "./workerService"; // Import Worker Thread trigger function
 
 /**
  * Fetch content from the URL using Axios.
@@ -88,10 +89,10 @@ export const processContent = (htmlContent: string, url: string) => {
 
 /**
  * Save the processed content into the MongoDB collection.
+ * Automatically trigger metric processing after saving.
  */
-
 export const saveContentToDB = async (data: {
-    userId: string; // Add userId
+    userId: string;
     url: string;
     metadata: object;
     textContent: string;
@@ -99,6 +100,18 @@ export const saveContentToDB = async (data: {
     dynamic: boolean;
     htmlContent: string;
 }) => {
-    const savedContent = await Content.create(data);
-    console.log("[Database] Content saved successfully:", savedContent);
+    try {
+        // Save scraped content to the database
+        const savedContent = await Content.create(data);
+        console.log("[Database] Scraped content saved successfully:", savedContent);
+
+        // Trigger Worker Thread for metric processing
+        console.log(`[Worker] Triggering metric processing for URL: ${data.url}`);
+        triggerMetricProcessing(data.userId, data.url);
+
+        return savedContent;
+    } catch (error) {
+        console.error("[Database] Failed to save content:", error);
+        throw new Error("Error saving content to database");
+    }
 };

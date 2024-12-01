@@ -1,27 +1,26 @@
 // src/controllers/authController.ts
 
-import { Request, Response } from 'express';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import { randomBytes } from 'crypto';
-import { User } from '../models/userModel';
-import { sendEmail } from '../services/emailService';
+import { Request, Response } from "express";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import { randomBytes } from "crypto";
+import { User } from "../models/userModel";
+import { sendEmail } from "../services/emailService";
 
 // Register User Function
-
 export const registerUser = async (req: Request, res: Response): Promise<void> => {
   try {
     const { username, email, password, confirmPassword, role } = req.body;
 
     // Validate input fields
     if (!username || !email || !password || !confirmPassword) {
-      res.status(400).json({ message: 'All fields are required' });
+      res.status(400).json({ message: "All fields are required" });
       return;
     }
 
     // Check if passwords match
     if (password !== confirmPassword) {
-      res.status(400).json({ message: 'Passwords do not match' });
+      res.status(400).json({ message: "Passwords do not match" });
       return;
     }
 
@@ -31,7 +30,7 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
     if (!passwordStrengthRegex.test(password)) {
       res.status(400).json({
         message:
-          'Password must be at least 8 characters long, include uppercase, lowercase, number, and special character',
+          "Password must be at least 8 characters long, include uppercase, lowercase, number, and special character",
       });
       return;
     }
@@ -39,7 +38,7 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
     // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      res.status(400).json({ message: 'User already exists' });
+      res.status(400).json({ message: "User already exists" });
       return;
     }
 
@@ -47,7 +46,7 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
     const isFirstUser = (await User.countDocuments()) === 0;
 
     // Set role based on whether this is the first user
-    const userRole = isFirstUser ? 'super_admin' : role || 'user';
+    const userRole = isFirstUser ? "super_admin" : role || "user";
 
     // Hash the password
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -64,10 +63,10 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
     const token = jwt.sign(
       { userId: newUser._id, role: newUser.role },
       process.env.JWT_SECRET!,
-      { expiresIn: '1h' }
+      { expiresIn: "1h" }
     );
 
-    // Construct a professional registration email template
+    // Send registration email
     const emailContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9; color: #333;">
         <div style="text-align: center; padding-bottom: 20px;">
@@ -103,112 +102,103 @@ export const registerUser = async (req: Request, res: Response): Promise<void> =
     await sendEmail(email, 'Welcome to RoundCodeBox!', emailContent);
 
     // Respond with token and user info
-    res.status(201).json({ token, user: { username, email, role: newUser.role } });
+    res.status(201).json({
+      token,
+      user: { userId: newUser._id, username, email, role: newUser.role },
+    });
   } catch (error) {
-    console.error('[Register User Error]', error);
-    res.status(500).json({ message: 'Internal server error' });
+    console.error("[Register User Error]", error);
+    res.status(500).json({ message: "Internal server error" });
   }
 };
 
 // Login User Function
-
 export const loginUser = async (req: Request, res: Response): Promise<void> => {
-  console.log('[Login Request]', req.body);
+  console.log("[Login Request]", req.body);
 
   try {
     const { email, password } = req.body;
 
-    console.log('[Login Input Check] Email:', email, 'Password:', password ? 'Provided' : 'Not Provided');
-
     if (!email || !password) {
-      res.status(400).json({ message: 'Email and password are required' });
+      res.status(400).json({ message: "Email and password are required" });
       return;
     }
 
     const user = await User.findOne({ email });
-    console.log('[User Lookup]', user ? `User found: ${user.email}` : 'User not found');
+    console.log("[User Lookup]", user ? `User found: ${user.email}` : "User not found");
 
     if (!user) {
-      res.status(404).json({ message: 'User not found' });
+      res.status(404).json({ message: "User not found" });
       return;
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
-    console.log('[Password Comparison]', isPasswordValid ? 'Password is valid' : 'Invalid password');
+    console.log("[Password Comparison]", isPasswordValid ? "Password is valid" : "Invalid password");
 
     if (!isPasswordValid) {
-      res.status(401).json({ message: 'Invalid email or password' });
+      res.status(401).json({ message: "Invalid email or password" });
       return;
     }
 
-    // Create JWT token including username, userId, and role
+    // Create JWT token including userId, username, and role
     const token = jwt.sign(
       { userId: user._id, role: user.role, username: user.username },
       process.env.JWT_SECRET!,
-      { expiresIn: '1h' }
+      { expiresIn: "1h" }
     );
 
+    // Respond with token and user info
     res.status(200).json({
       token,
       user: {
+        userId: user._id,
         username: user.username,
         email: user.email,
         role: user.role,
       },
     });
-    console.log('[Login Successful]', user.username);
+    console.log("[Login Successful]", user.username);
   } catch (error) {
-    console.error('[Login User Error]', error);
-    res.status(500).json({ message: 'Internal server error' });
+    console.error("[Login User Error]", error);
+    res.status(500).json({ message: "Internal server error" });
   }
 };
-
 
 // Logout User Function
-
 export const logoutUser = async (req: Request, res: Response): Promise<void> => {
   try {
-    // Clear token or session data if needed (client-side typically handles this)
-    res.status(200).json({ message: 'Logged out successfully' });
+    res.status(200).json({ message: "Logged out successfully" });
   } catch (error) {
-    console.error('[Logout Error]', error);
-    res.status(500).json({ message: 'Internal server error' });
+    console.error("[Logout Error]", error);
+    res.status(500).json({ message: "Internal server error" });
   }
 };
 
-// Forgot User Password Function
-
+// Forgot Password Function
 export const forgotPassword = async (req: Request, res: Response): Promise<void> => {
   try {
     const { email } = req.body;
 
-    // Validate input
     if (!email) {
-      res.status(400).json({ message: 'Email is required' });
+      res.status(400).json({ message: "Email is required" });
       return;
     }
 
-    // Check if user exists
     const user = await User.findOne({ email });
     if (!user) {
-      res.status(404).json({ message: 'No account found with this email' });
+      res.status(404).json({ message: "No account found with this email" });
       return;
     }
 
-    // Generate a reset token
-    const resetToken = randomBytes(32).toString('hex');
-
-    // Hash the reset token and store it in the user document
+    const resetToken = randomBytes(32).toString("hex");
     const hashedToken = await bcrypt.hash(resetToken, 10);
-    user.passwordResetToken = hashedToken;
-    user.passwordResetExpires = new Date(Date.now() + 3600000); // 1 hour from now
 
+    user.passwordResetToken = hashedToken;
+    user.passwordResetExpires = new Date(Date.now() + 3600000); // 1 hour expiry
     await user.save();
 
-    // Create reset link
     const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}&email=${email}`;
 
-    // Construct a professional password reset email template
     const emailContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9; color: #333;">
         <div style="text-align: center; padding-bottom: 20px;">
@@ -243,7 +233,7 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
     // Send the email
     await sendEmail(email, 'Password Reset Request', emailContent);
 
-    res.status(200).json({ message: 'Password reset link has been sent to your email' });
+    res.status(200).json({ message: "Password reset link has been sent to your email" });
   } catch (error) {
     console.error('[Forgot Password Error]', error);
     res.status(500).json({ message: 'Internal server error' });

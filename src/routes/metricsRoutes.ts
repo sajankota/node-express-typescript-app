@@ -1,19 +1,14 @@
 // src/routes/metricsRoutes.ts
 
-import express from "express";
-import { getGeneratedUrls } from "../controllers/getGeneratedUrls";
+import { Router } from "express";
 import { processMetrics } from "../controllers/processMetrics";
 import { getProcessedMetrics } from "../controllers/getProcessedMetrics";
+import { getGeneratedUrls } from "../controllers/getGeneratedUrls";
 
-const router = express.Router();
+const router = Router();
 
-// Route to process metrics
-router.post("/process-metrics", processMetrics);
-
-// Route to get processed metrics
-router.get("/processed-metrics", getProcessedMetrics);
-
-// New route to get generated URLs
-router.get("/generated-urls", getGeneratedUrls);
+router.post("/process-metrics", processMetrics); // Triggers worker threads
+router.get("/processed-metrics", getProcessedMetrics); // Fetch processed metrics
+router.get("/generated-urls", getGeneratedUrls); // Fetch URLs with processed metrics
 
 export default router;
