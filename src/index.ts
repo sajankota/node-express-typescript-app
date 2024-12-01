@@ -17,6 +17,7 @@ import seoMetricsRoutes from "./routes/seoMetricsRoutes";
 import performanceMetricsRoutes from "./routes/performanceMetricsRoutes";
 import accessibilityRoutes from "./routes/accessibilityRoutes";
 import cruxRoutes from "./routes/cruxRoutes";
+import metricsRoutes from "./routes/metricsRoutes";
 
 
 const app = express();
@@ -58,6 +59,9 @@ app.use("/api/meta-tags", metaRoutes); // Meta-tags routes
 app.use("/api/headings", headingRoutes); // Headings routes
 app.use("/api/content", contentRoutes); // Content routes
 app.use("/api/links", linkRoutes); // Links routes
+
+// Register routes
+app.use("/api/metrics", metricsRoutes);
 
 // seo-metrics route at /api/seo-metrics
 app.use("/api/seo-metrics", seoMetricsRoutes); // SEO Metrics routes

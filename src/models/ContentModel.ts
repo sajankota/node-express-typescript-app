@@ -14,8 +14,10 @@ export interface IContent extends Document {
         ogImage: string | null;
     };
     favicon: string | null;
-    textContent: string;
+    textContent: string | null;
     dynamic: boolean;
+    htmlContent: string;
+    userId: string; // Added userId
     createdAt: Date;
 }
 
@@ -31,9 +33,20 @@ const ContentSchema = new Schema<IContent>({
         ogImage: { type: String, default: null },
     },
     favicon: { type: String, default: null },
-    textContent: { type: String, required: true },
+    textContent: {
+        type: String,
+        default: null, // Allow null values for missing `textContent`
+        required: false, // Made optional
+    },
     dynamic: { type: Boolean, required: true },
+    htmlContent: { type: String, required: true },
+    userId: { type: String, required: true }, // User ID field
     createdAt: { type: Date, default: Date.now },
+});
+
+// Override the `toObject` method to ensure proper typing
+ContentSchema.method("toObject", function (this: IContent) {
+    return this.toJSON() as IContent;
 });
 
 // Create the Content model
