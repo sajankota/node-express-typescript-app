@@ -7,20 +7,31 @@ export const getProcessedMetrics = async (req: Request, res: Response): Promise<
     const { userId, url } = req.query; // Filters passed via query parameters
 
     try {
-        // Step 1: Build the query object
-        const query: any = {};
-        if (userId) query.userId = userId;
-        if (url) query.url = url;
+        // Step 1: Validate input
+        if (!userId || !url) {
+            res.status(400).json({ message: "Missing userId or url in query parameters" });
+            return;
+        }
 
-        // Step 2: Query the Metrics collection
-        const processedMetrics = await Metrics.find(query);
+        console.log(`[Debug] Query Params: userId=${userId}, url=${url}`);
 
-        if (!processedMetrics || processedMetrics.length === 0) {
+        // Step 2: Build the query object
+        const query = { userId, url };
+
+        // Step 3: Query the Metrics collection with projection to reduce response size
+        const processedMetrics = await Metrics.findOne(query, {
+            metrics: 1, // Include only the "metrics" field
+            url: 1, // Include the URL
+            createdAt: 1, // Include the createdAt timestamp
+            _id: 0, // Exclude the MongoDB ID (_id)
+        });
+
+        if (!processedMetrics) {
             res.status(404).json({ message: "No processed metrics found for the given criteria" });
             return;
         }
 
-        // Step 3: Send the response
+        // Step 4: Send the response
         res.status(200).json({
             message: "Processed metrics retrieved successfully",
             data: processedMetrics,
