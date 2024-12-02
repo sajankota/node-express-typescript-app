@@ -10,7 +10,7 @@ import path from "path";
  */
 export const triggerMetricProcessing = (userId: string, url: string) => {
     // Path to the Worker Thread file
-    const workerPath = path.resolve(__dirname, "../dist/workers/metricWorker.ts");
+    const workerPath = path.resolve(__dirname, "../dist/workers/metricWorker.js");
 
     // Create a new Worker Thread
     const worker = new Worker(workerPath, {

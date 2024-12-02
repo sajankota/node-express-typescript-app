@@ -1,11 +1,15 @@
-// src/services/metricsService.ts
+// src/services/metricsService.ts 
 
 import { IContent } from "../models/ContentModel"; // Import the correct type
 
 interface MetricResults {
     seo: {
+        actualTitle: string | null; // Add the actual scraped title
         titlePresent: boolean;
+        titleLength: number; // Title length
+        actualMetaDescription: string | null; // Add the actual scraped meta-description
         metaDescriptionPresent: boolean;
+        metaDescriptionLength: number; // Meta description length
         headingsCount: number;
         contentKeywords: string[];
         seoFriendlyUrl: boolean;
@@ -41,70 +45,72 @@ export const calculateMetrics = (data: IContent): MetricResults => {
     const htmlContent = data.htmlContent;
 
     // --- SEO Metrics ---
-    const titlePresent = htmlContent.includes("<title>") && htmlContent.includes("</title>");
-    const metaDescriptionPresent = htmlContent.includes('<meta name="description"');
-    const headingsCount = (htmlContent.match(/<h[1-6]>/g) || []).length;
-    const contentKeywords = extractKeywords(htmlContent); // Custom logic to extract keywords
-    const seoFriendlyUrl = isSeoFriendlyUrl(url);
-    const faviconPresent = data.favicon !== null;
-    const robotsTxtAccessible = isRobotsTxtAccessible(url);
-    const inPageLinks = (htmlContent.match(/<a /g) || []).length;
-    const languageDeclared = htmlContent.includes('<html lang=');
+    const title = data.metadata.title || null; // Extract the actual title
+    const metaDescription = data.metadata.description || null; // Extract the actual meta-description
+
+    const seoMetrics = {
+        actualTitle: title, // Include the actual scraped title
+        titlePresent: title !== null, // Check if title is present
+        titleLength: calculateLength(title), // Calculate title length
+        actualMetaDescription: metaDescription, // Include the actual scraped meta-description
+        metaDescriptionPresent: metaDescription !== null, // Check if meta-description is present
+        metaDescriptionLength: calculateLength(metaDescription), // Calculate meta-description length
+        headingsCount: (htmlContent.match(/<h[1-6]>/g) || []).length, // Count headings
+        contentKeywords: extractKeywords(htmlContent), // Extract keywords
+        seoFriendlyUrl: isSeoFriendlyUrl(url), // Check if URL is SEO-friendly
+        faviconPresent: data.favicon !== null, // Check if favicon is present
+        robotsTxtAccessible: isRobotsTxtAccessible(url), // Check robots.txt accessibility
+        inPageLinks: (htmlContent.match(/<a /g) || []).length, // Count in-page links
+        languageDeclared: htmlContent.includes('<html lang='), // Check if language is declared
+    };
 
     // --- Security Metrics ---
-    const httpsEnabled = url.startsWith("https://");
-    const mixedContent = hasMixedContent(htmlContent);
-    const serverSignatureHidden = true; // Assume server signature is hidden; customize this based on actual check
-    const hstsEnabled = true; // Assume HSTS is enabled; requires actual server header validation
+    const securityMetrics = {
+        httpsEnabled: url.startsWith("https://"), // Check if HTTPS is enabled
+        mixedContent: hasMixedContent(htmlContent), // Check for mixed content
+        serverSignatureHidden: true, // Placeholder for server signature validation
+        hstsEnabled: true, // Placeholder for HSTS validation
+    };
 
     // --- Performance Metrics ---
-    const pageSizeKb = Math.ceil(htmlContent.length / 1024); // Rough page size in KB
-    const httpRequests = countHttpRequests(htmlContent); // Custom function to count HTTP requests
-    const textCompressionEnabled = htmlContent.includes("Content-Encoding: gzip");
+    const performanceMetrics = {
+        pageSizeKb: Math.ceil(htmlContent.length / 1024), // Calculate page size in KB
+        httpRequests: countHttpRequests(htmlContent), // Count HTTP requests
+        textCompressionEnabled: htmlContent.includes("Content-Encoding: gzip"), // Placeholder for text compression
+    };
 
     // --- Miscellaneous Metrics ---
-    const metaViewportPresent = htmlContent.includes('<meta name="viewport"');
-    const characterSet = extractCharacterSet(htmlContent); // Extract charset from <meta> tag
-    const sitemapAccessible = isSitemapAccessible(url);
-    const textToHtmlRatio = calculateTextToHtmlRatio(htmlContent, data.textContent);
+    const miscellaneousMetrics = {
+        metaViewportPresent: htmlContent.includes('<meta name="viewport"'), // Check if meta viewport is present
+        characterSet: extractCharacterSet(htmlContent), // Extract character set
+        sitemapAccessible: isSitemapAccessible(url), // Check if sitemap is accessible
+        textToHtmlRatio: calculateTextToHtmlRatio(htmlContent, data.textContent), // Calculate text-to-HTML ratio
+    };
 
     return {
-        seo: {
-            titlePresent,
-            metaDescriptionPresent,
-            headingsCount,
-            contentKeywords,
-            seoFriendlyUrl,
-            faviconPresent,
-            robotsTxtAccessible,
-            inPageLinks,
-            languageDeclared,
-        },
-        security: {
-            httpsEnabled,
-            mixedContent,
-            serverSignatureHidden,
-            hstsEnabled,
-        },
-        performance: {
-            pageSizeKb,
-            httpRequests,
-            textCompressionEnabled,
-        },
-        miscellaneous: {
-            metaViewportPresent,
-            characterSet,
-            sitemapAccessible,
-            textToHtmlRatio,
-        },
+        seo: seoMetrics,
+        security: securityMetrics,
+        performance: performanceMetrics,
+        miscellaneous: miscellaneousMetrics,
     };
 };
 
+// --- Helper Functions ---
+
 /**
- * Extract keywords from the content.
+ * Calculate the length of a given string.
+ * If the input is null or undefined, returns 0.
+ */
+const calculateLength = (text: string | null | undefined): number => {
+    if (!text) return 0;
+    return text.trim().length;
+};
+
+/**
+ * Extract keywords from the meta tag in the HTML content.
  */
 const extractKeywords = (htmlContent: string): string[] => {
-    const metaTag = htmlContent.match(/<meta name="keywords" content="([^"]+)"/);
+    const metaTag = htmlContent.match(/<meta name="keywords" content="([^"]+)"/i);
     if (metaTag && metaTag[1]) {
         return metaTag[1].split(",").map((keyword) => keyword.trim());
     }
@@ -142,7 +148,7 @@ const hasMixedContent = (htmlContent: string): boolean => {
 };
 
 /**
- * Count the number of HTTP requests on the page.
+ * Count the number of HTTP requests in the HTML content.
  */
 const countHttpRequests = (htmlContent: string): number => {
     const links = (htmlContent.match(/<link /g) || []).length;
@@ -152,10 +158,10 @@ const countHttpRequests = (htmlContent: string): number => {
 };
 
 /**
- * Extract character set from the HTML.
+ * Extract the character set from the HTML content.
  */
 const extractCharacterSet = (htmlContent: string): string | null => {
-    const charsetMatch = htmlContent.match(/<meta charset="([^"]+)"/);
+    const charsetMatch = htmlContent.match(/<meta charset="([^"]+)"/i);
     return charsetMatch ? charsetMatch[1] : null;
 };
 
@@ -172,7 +178,7 @@ const isSitemapAccessible = (url: string): boolean => {
 };
 
 /**
- * Calculate text-to-HTML ratio.
+ * Calculate the text-to-HTML ratio.
  */
 const calculateTextToHtmlRatio = (htmlContent: string, textContent: string | null): number => {
     const htmlLength = htmlContent.length;

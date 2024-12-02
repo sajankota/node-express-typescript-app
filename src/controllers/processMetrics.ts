@@ -28,6 +28,7 @@ export const processMetrics = async (req: Request, res: Response): Promise<void>
         }
 
         let processedCount = 0;
+        const metricsData = []; // Collect metrics for response
 
         // Step 2: Process each URL and calculate metrics
         for (const data of scrapedData) {
@@ -36,6 +37,7 @@ export const processMetrics = async (req: Request, res: Response): Promise<void>
 
             // Pass the plain object to the metrics calculation service
             const metrics = calculateMetrics(plainData);
+            console.log("Calculated Metrics:", metrics); // Debugging: Ensure metrics include new fields
 
             // Step 3: Save the processed metrics to the new collection
             await Metrics.create({
@@ -45,13 +47,15 @@ export const processMetrics = async (req: Request, res: Response): Promise<void>
                 createdAt: new Date(),
             });
 
+            metricsData.push(metrics); // Collect metrics for API response
             processedCount++;
         }
 
-        // Step 4: Send response
+        // Step 4: Send response with metrics included
         res.status(200).json({
             message: "Metrics processed successfully",
             processedCount,
+            metrics: scrapedData.map((data) => calculateMetrics(data.toObject())), // Include all calculated metrics
         });
     } catch (error) {
         console.error("[Process Metrics] Error:", error);

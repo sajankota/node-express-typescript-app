@@ -43,6 +43,7 @@ const connectWorkerToDB = async () => {
 
     // Step 3: Calculate metrics
     const metrics = calculateMetrics(scrapedData.toObject());
+    console.log("[Worker] Calculated Metrics:", metrics); // Debugging: Ensure metrics include new fields
 
     // Step 4: Save the processed metrics to the `Metrics` collection
     await Metrics.create({
