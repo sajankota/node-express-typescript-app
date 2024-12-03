@@ -39,15 +39,18 @@ export const processMetrics = async (req: Request, res: Response): Promise<void>
             const metrics = calculateMetrics(plainData);
             console.log("Calculated Metrics:", metrics); // Debugging: Ensure metrics include new fields
 
-            // Step 3: Save the processed metrics to the new collection
-            const savedMetrics = await Metrics.create({
+            // Debug logs to ensure new fields are calculated
+            console.log("H1 Tag Count:", metrics.seo.h1TagCount);
+            console.log("H1 Tag Content:", metrics.seo.h1TagContent);
+
+            await Metrics.create({
                 userId: plainData.userId,
                 url: plainData.url,
                 metrics,
                 createdAt: new Date(),
             });
 
-            metricsData.push(metrics); // Collect metrics for API response
+            metricsData.push(metrics);
             processedCount++;
         }
 
@@ -55,7 +58,7 @@ export const processMetrics = async (req: Request, res: Response): Promise<void>
         res.status(200).json({
             message: "Metrics processed successfully",
             processedCount,
-            metrics: metricsData, // Include all calculated metrics
+            metrics: metricsData,
         });
     } catch (error) {
         console.error("[Process Metrics] Error:", error);

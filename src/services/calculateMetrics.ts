@@ -19,6 +19,8 @@ interface MetricResults {
         inPageLinks: number;
         languageDeclared: boolean;
         hreflangTagPresent: boolean;
+        h1TagCount: number; // New field
+        h1TagContent: string[]; // New field
     };
     security: {
         httpsEnabled: boolean;
@@ -50,11 +52,11 @@ export const calculateMetrics = (data: IContent): MetricResults => {
         actualTitle: title,
         titlePresent: title !== null,
         titleLength: calculateLength(title),
-        title: title || "Unknown Title", // Ensure title is never undefined
+        title: title || "Unknown Title",
         actualMetaDescription: metaDescription,
         metaDescriptionPresent: metaDescription !== null,
         metaDescriptionLength: calculateLength(metaDescription),
-        metaDescription: metaDescription || "No Meta Description", // Ensure metaDescription is never undefined
+        metaDescription: metaDescription || "No Meta Description",
         headingsCount: (htmlContent.match(/<h[1-6]>/g) || []).length,
         contentKeywords: extractKeywords(htmlContent),
         seoFriendlyUrl: isSeoFriendlyUrl(url),
@@ -65,6 +67,10 @@ export const calculateMetrics = (data: IContent): MetricResults => {
         languageDeclared: htmlContent.includes('<html lang='),
         keywordsPresent: extractKeywords(htmlContent).length > 0 ? "Yes" : "No",
         hreflangTagPresent: hasHreflangTag(htmlContent),
+
+        // Updated metrics for H1 tags
+        h1TagCount: countH1Tags(htmlContent),
+        h1TagContent: extractH1Content(htmlContent),
     };
 
     return {
@@ -137,6 +143,20 @@ const isRobotsTxtAccessible = (url: string): boolean => {
     } catch {
         return false;
     }
+};
+
+// Helper function to count the number of <h1> tags
+const countH1Tags = (htmlContent: string): number => {
+    return (htmlContent.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/gi) || []).length;
+};
+
+// Helper function to extract the content of all <h1> tags
+const extractH1Content = (htmlContent: string): string[] => {
+    const matches = htmlContent.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/gi) || [];
+    return matches.map((h1Tag) => {
+        const textContent = h1Tag.replace(/<[^>]+>/g, "").trim();
+        return textContent;
+    });
 };
 
 /**
