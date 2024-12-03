@@ -13,11 +13,11 @@ export interface AuthRequest extends Request {
 
 // Helper function to verify a JWT
 export const verifyToken = (token: string): { userId: string; role: string } => {
-    const jwtSecret = process.env.JWT_SECRET || "your_fallback_secret"; // Replace fallback for production!
-
+    const jwtSecret = process.env.JWT_SECRET;
     if (!jwtSecret) {
         throw new Error("[Configuration Error] JWT_SECRET is not defined in the environment variables.");
     }
+
 
     try {
         // Verify the token and decode it

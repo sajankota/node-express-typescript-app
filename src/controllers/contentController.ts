@@ -1,86 +1,61 @@
 // src/controllers/contentController.ts
 
 import { Request, Response } from "express";
-import { scrapeContent } from "../services/scraper";
-import ContentModel from "../models/ContentModel";
-import { ReportAnalysis } from "../models/AnalysisReportModel";
-import { AuthRequest } from "../middleware/authMiddleware";
+import { fetchWithAxios, fetchWithPuppeteer, processContent, saveContentToDB } from "../services/contentService";
+import { triggerMetricProcessing } from "./processMetrics"; // Import the trigger function
 
-export const getContent = async (req: AuthRequest, res: Response): Promise<void> => {
-    const { url } = req.body;
+export const getContent = async (req: Request, res: Response): Promise<void> => {
+    console.log("[Debug] Request Body:", req.body); // Debug log for request body
 
-    console.log(`[Debug] Received request to extract content for URL: ${url}`);
+    const { url, userId } = req.body; // Extract URL and userId from the request body
 
-    // Validate the URL
-    if (!url || typeof url !== "string") {
-        console.error("[Error] Invalid URL received.");
-        res.status(400).json({ message: "A valid URL is required." });
-        return;
-    }
-
-    // Extract `userId` from `req.user`
-    const userId = req.user?.userId;
-
-    // Validate the userId
-    if (!userId) {
-        console.warn("[Warning] No user ID found in the request.");
-        res.status(401).json({ message: "Unauthorized request." });
+    // Check for missing or invalid URL or userId
+    if (!url || typeof url !== "string" || !userId || typeof userId !== "string") {
+        res.status(400).json({ error: "Invalid or missing 'url' or 'userId' in request body" });
         return;
     }
 
     try {
-        // Extract content using the `scrapeContent` service
-        const { tags, counts, analysis, content } = await scrapeContent(url);
+        let htmlContent: string;
 
-        // Save the content analysis to the database
-        const contentRecord = new ContentModel({
-            userId, // Use the extracted userId
+        // Step 1: Fetch content
+        try {
+            htmlContent = await fetchWithAxios(url);
+        } catch (axiosError) {
+            console.log("[Axios] Failed. Switching to Puppeteer...");
+            htmlContent = await fetchWithPuppeteer(url);
+        }
+
+        // Step 2: Process HTML content
+        const { metadata, textContent, favicon } = processContent(htmlContent, url);
+
+        const finalTextContent = textContent?.trim() || "No content found";
+        const dynamic = htmlContent.includes("<script>"); // Check for dynamic content
+
+        // Step 3: Save scraped content to the database
+        await saveContentToDB({
+            userId, // Include userId
             url,
-            tags,
-            counts,
-            analysis,
-            content,
+            metadata,
+            textContent: finalTextContent,
+            favicon,
+            dynamic,
+            htmlContent, // Save the full HTML
         });
 
-        await contentRecord.save();
-        console.log(`[Debug] Content details saved to the database for user: ${userId}`);
+        console.log(`[Content] Scraping data saved for URL: ${url}`);
 
-        // Save the `_id` of the content record to the `AnalysisReport` model
-        const analysisReport = await ReportAnalysis.findOneAndUpdate(
-            { userId, url }, // Match by userId and url
-            {
-                $set: {
-                    "analyses.contentAnalysis.status": "completed",
-                    "analyses.contentAnalysis.contentAnalysisId": contentRecord._id,
-                },
-            },
-            { new: true, upsert: true } // Create if not found
-        );
+        // Step 4: Trigger metric processing
+        triggerMetricProcessing(userId, url);
 
-        console.log(`[Debug] ReportAnalysis updated with ContentAnalysis ID: ${contentRecord._id}`);
-
-        // Send the response
+        // Step 5: Respond to the client
         res.status(200).json({
-            message: "Content extracted successfully",
-            data: { tags, counts, analysis, content },
+            message: "Content scraped and metrics processing triggered successfully.",
+            data: { url, metadata, textContent: finalTextContent, favicon, dynamic },
         });
     } catch (error) {
-        console.error("[Error] Failed to extract content.", error);
-
-        // Update `AnalysisReport` with failure status
-        await ReportAnalysis.findOneAndUpdate(
-            { userId, url },
-            {
-                $set: {
-                    "analyses.contentAnalysis.status": "failed",
-                    "analyses.contentAnalysis.error": error instanceof Error ? error.message : "Unknown error",
-                },
-            },
-            { upsert: true } // Create a new `AnalysisReport` if one doesn't exist
-        );
-
-        res.status(500).json({
-            message: "Failed to scrape and analyze content.",
-        });
+        console.error("[Get Content] Error:", error);
+        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
+        res.status(500).json({ error: "Failed to fetch content", details: errorMessage });
     }
 };
