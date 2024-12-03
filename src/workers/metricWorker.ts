@@ -41,9 +41,18 @@ const connectWorkerToDB = async () => {
       return;
     }
 
+    console.log("[Worker] Scraped Data:", JSON.stringify(scrapedData, null, 2)); // Log the entire scraped data
+
+    // Check if the favicon field exists in the document
+    if (!scrapedData.favicon) {
+      console.warn("[Worker] Favicon field is missing or null in scraped data");
+    } else {
+      console.log("[Worker] Favicon URL found in scraped data:", scrapedData.favicon);
+    }
+
     // Step 3: Calculate metrics
     const metrics = calculateMetrics(scrapedData.toObject());
-    console.log("[Worker] Calculated Metrics:", metrics); // Debugging: Ensure metrics include new fields
+    console.log("[Worker] Calculated Metrics:", JSON.stringify(metrics, null, 2)); // Log calculated metrics
 
     // Step 4: Save the processed metrics to the `Metrics` collection
     await Metrics.create({

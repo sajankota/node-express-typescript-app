@@ -12,6 +12,7 @@ export const calculateMetrics = (scrapedData: any) => {
         headingsCount: countHeadings(scrapedData.htmlContent), // Number of headings
         seoFriendlyUrl: isSeoFriendlyUrl(scrapedData.url), // Whether URL is SEO-friendly
         faviconPresent: scrapedData.favicon ? true : false, // Whether a favicon is present
+        faviconUrl: scrapedData.favicon || null, // Add favicon URL
         robotsTxtAccessible: isRobotsTxtAccessible(scrapedData.url), // Whether robots.txt is accessible
         inPageLinks: countInPageLinks(scrapedData.htmlContent), // Count of in-page links
         keywordsPresent: scrapedData.metadata.keywords || "No keywords found", // Keywords in metadata

@@ -1,19 +1,20 @@
 // src/services/metricsService.ts 
 
-import { IContent } from "../models/ContentModel"; // Import the correct type
+import { IContent } from "../models/ContentModel";
 
 interface MetricResults {
     seo: {
-        actualTitle: string | null; // Add the actual scraped title
+        actualTitle: string | null;
         titlePresent: boolean;
-        titleLength: number; // Title length
-        actualMetaDescription: string | null; // Add the actual scraped meta-description
+        titleLength: number;
+        actualMetaDescription: string | null;
         metaDescriptionPresent: boolean;
-        metaDescriptionLength: number; // Meta description length
+        metaDescriptionLength: number;
         headingsCount: number;
         contentKeywords: string[];
         seoFriendlyUrl: boolean;
         faviconPresent: boolean;
+        faviconUrl: string | null;
         robotsTxtAccessible: boolean;
         inPageLinks: number;
         languageDeclared: boolean;
@@ -37,63 +38,55 @@ interface MetricResults {
     };
 }
 
-/**
- * Calculate metrics for a single scraped data object.
- */
 export const calculateMetrics = (data: IContent): MetricResults => {
     const url = data.url;
     const htmlContent = data.htmlContent;
 
-    // --- SEO Metrics ---
-    const title = data.metadata.title || null; // Extract the actual title
-    const metaDescription = data.metadata.description || null; // Extract the actual meta-description
+    const title = data.metadata.title || null;
+    const metaDescription = data.metadata.description || null;
 
     const seoMetrics = {
-        actualTitle: title, // Include the actual scraped title
-        titlePresent: title !== null, // Check if title is present
-        titleLength: calculateLength(title), // Calculate title length
-        actualMetaDescription: metaDescription, // Include the actual scraped meta-description
-        metaDescriptionPresent: metaDescription !== null, // Check if meta-description is present
-        metaDescriptionLength: calculateLength(metaDescription), // Calculate meta-description length
-        headingsCount: (htmlContent.match(/<h[1-6]>/g) || []).length, // Count headings
-        contentKeywords: extractKeywords(htmlContent), // Extract keywords
-        seoFriendlyUrl: isSeoFriendlyUrl(url), // Check if URL is SEO-friendly
-        faviconPresent: data.favicon !== null, // Check if favicon is present
-        robotsTxtAccessible: isRobotsTxtAccessible(url), // Check robots.txt accessibility
-        inPageLinks: (htmlContent.match(/<a /g) || []).length, // Count in-page links
-        languageDeclared: htmlContent.includes('<html lang='), // Check if language is declared
-    };
-
-    // --- Security Metrics ---
-    const securityMetrics = {
-        httpsEnabled: url.startsWith("https://"), // Check if HTTPS is enabled
-        mixedContent: hasMixedContent(htmlContent), // Check for mixed content
-        serverSignatureHidden: true, // Placeholder for server signature validation
-        hstsEnabled: true, // Placeholder for HSTS validation
-    };
-
-    // --- Performance Metrics ---
-    const performanceMetrics = {
-        pageSizeKb: Math.ceil(htmlContent.length / 1024), // Calculate page size in KB
-        httpRequests: countHttpRequests(htmlContent), // Count HTTP requests
-        textCompressionEnabled: htmlContent.includes("Content-Encoding: gzip"), // Placeholder for text compression
-    };
-
-    // --- Miscellaneous Metrics ---
-    const miscellaneousMetrics = {
-        metaViewportPresent: htmlContent.includes('<meta name="viewport"'), // Check if meta viewport is present
-        characterSet: extractCharacterSet(htmlContent), // Extract character set
-        sitemapAccessible: isSitemapAccessible(url), // Check if sitemap is accessible
-        textToHtmlRatio: calculateTextToHtmlRatio(htmlContent, data.textContent), // Calculate text-to-HTML ratio
+        actualTitle: title,
+        titlePresent: title !== null,
+        titleLength: calculateLength(title),
+        title: title || "Unknown Title", // Ensure title is never undefined
+        actualMetaDescription: metaDescription,
+        metaDescriptionPresent: metaDescription !== null,
+        metaDescriptionLength: calculateLength(metaDescription),
+        metaDescription: metaDescription || "No Meta Description", // Ensure metaDescription is never undefined
+        headingsCount: (htmlContent.match(/<h[1-6]>/g) || []).length,
+        contentKeywords: extractKeywords(htmlContent),
+        seoFriendlyUrl: isSeoFriendlyUrl(url),
+        faviconPresent: data.favicon !== null,
+        faviconUrl: data.favicon || null,
+        robotsTxtAccessible: isRobotsTxtAccessible(url),
+        inPageLinks: (htmlContent.match(/<a /g) || []).length,
+        languageDeclared: htmlContent.includes('<html lang='),
+        keywordsPresent: extractKeywords(htmlContent).length > 0 ? "Yes" : "No", // Ensure keywordsPresent is always a string
     };
 
     return {
         seo: seoMetrics,
-        security: securityMetrics,
-        performance: performanceMetrics,
-        miscellaneous: miscellaneousMetrics,
+        security: {
+            httpsEnabled: url.startsWith("https://"),
+            mixedContent: hasMixedContent(htmlContent),
+            serverSignatureHidden: true,
+            hstsEnabled: true,
+        },
+        performance: {
+            pageSizeKb: Math.ceil(htmlContent.length / 1024),
+            httpRequests: countHttpRequests(htmlContent),
+            textCompressionEnabled: htmlContent.includes("Content-Encoding: gzip"),
+        },
+        miscellaneous: {
+            metaViewportPresent: htmlContent.includes('<meta name="viewport"'),
+            characterSet: extractCharacterSet(htmlContent),
+            sitemapAccessible: isSitemapAccessible(url),
+            textToHtmlRatio: calculateTextToHtmlRatio(htmlContent, data.textContent),
+        },
     };
 };
+
 
 // --- Helper Functions ---
 
