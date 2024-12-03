@@ -9,7 +9,7 @@ import { Worker } from "worker_threads";
 import path from "path";
 
 /**
- * Manually process metrics in a single thread (not recommended for production scale).
+ * Manually process metrics in a single thread.
  */
 export const processMetrics = async (req: Request, res: Response): Promise<void> => {
     const { userId, url } = req.body;
@@ -40,7 +40,7 @@ export const processMetrics = async (req: Request, res: Response): Promise<void>
             console.log("Calculated Metrics:", metrics); // Debugging: Ensure metrics include new fields
 
             // Step 3: Save the processed metrics to the new collection
-            await Metrics.create({
+            const savedMetrics = await Metrics.create({
                 userId: plainData.userId,
                 url: plainData.url,
                 metrics,
@@ -55,7 +55,7 @@ export const processMetrics = async (req: Request, res: Response): Promise<void>
         res.status(200).json({
             message: "Metrics processed successfully",
             processedCount,
-            metrics: scrapedData.map((data) => calculateMetrics(data.toObject())), // Include all calculated metrics
+            metrics: metricsData, // Include all calculated metrics
         });
     } catch (error) {
         console.error("[Process Metrics] Error:", error);
@@ -68,9 +68,6 @@ export const processMetrics = async (req: Request, res: Response): Promise<void>
 
 /**
  * Trigger metric processing using worker threads.
- * 
- * @param userId - The ID of the user for which metrics are being processed
- * @param url - The URL to process metrics for
  */
 export const triggerMetricProcessing = (userId: string, url: string): void => {
     console.log(`[Worker] Triggering metric processing for URL: ${url}`);

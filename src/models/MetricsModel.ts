@@ -16,10 +16,12 @@ export interface IMetrics extends Document {
             headingsCount: number;
             seoFriendlyUrl: boolean;
             faviconPresent: boolean;
-            faviconUrl: string | null; // Add faviconUrl here
+            faviconUrl: string | null;
             robotsTxtAccessible: boolean;
             inPageLinks: number;
             keywordsPresent: string;
+            hreflangTagPresent: boolean;
+            languageDeclared: boolean;
         };
         security: object;
         performance: object;
@@ -43,10 +45,12 @@ const MetricsSchema = new Schema<IMetrics>({
                 headingsCount: { type: Number, required: true },
                 seoFriendlyUrl: { type: Boolean, required: true },
                 faviconPresent: { type: Boolean, required: true },
-                faviconUrl: { type: String, default: null }, // Add faviconUrl field
+                faviconUrl: { type: String, default: null },
                 robotsTxtAccessible: { type: Boolean, required: true },
                 inPageLinks: { type: Number, required: true },
                 keywordsPresent: { type: String, required: true },
+                hreflangTagPresent: { type: Boolean, required: true },
+                languageDeclared: { type: Boolean, required: true },
             }),
             required: true,
         },

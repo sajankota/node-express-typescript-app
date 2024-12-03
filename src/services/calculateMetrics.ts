@@ -18,6 +18,7 @@ interface MetricResults {
         robotsTxtAccessible: boolean;
         inPageLinks: number;
         languageDeclared: boolean;
+        hreflangTagPresent: boolean;
     };
     security: {
         httpsEnabled: boolean;
@@ -62,7 +63,8 @@ export const calculateMetrics = (data: IContent): MetricResults => {
         robotsTxtAccessible: isRobotsTxtAccessible(url),
         inPageLinks: (htmlContent.match(/<a /g) || []).length,
         languageDeclared: htmlContent.includes('<html lang='),
-        keywordsPresent: extractKeywords(htmlContent).length > 0 ? "Yes" : "No", // Ensure keywordsPresent is always a string
+        keywordsPresent: extractKeywords(htmlContent).length > 0 ? "Yes" : "No",
+        hreflangTagPresent: hasHreflangTag(htmlContent),
     };
 
     return {
@@ -87,8 +89,14 @@ export const calculateMetrics = (data: IContent): MetricResults => {
     };
 };
 
-
 // --- Helper Functions ---
+
+/**
+ * Check if the hreflang tag is present in the HTML content.
+ */
+const hasHreflangTag = (htmlContent: string): boolean => {
+    return /<link[^>]+rel=["']alternate["'][^>]+hreflang=["'][^"']+["']/i.test(htmlContent);
+};
 
 /**
  * Calculate the length of a given string.
