@@ -19,8 +19,10 @@ interface MetricResults {
         inPageLinks: number;
         languageDeclared: boolean;
         hreflangTagPresent: boolean;
-        h1TagCount: number; // New field
-        h1TagContent: string[]; // New field
+        h1TagCount: number;
+        h1TagContent: string[];
+        h2ToH6TagCount: number;
+        h2ToH6TagContent: { tag: string; content: string }[];
     };
     security: {
         httpsEnabled: boolean;
@@ -67,10 +69,12 @@ export const calculateMetrics = (data: IContent): MetricResults => {
         languageDeclared: htmlContent.includes('<html lang='),
         keywordsPresent: extractKeywords(htmlContent).length > 0 ? "Yes" : "No",
         hreflangTagPresent: hasHreflangTag(htmlContent),
-
-        // Updated metrics for H1 tags
         h1TagCount: countH1Tags(htmlContent),
         h1TagContent: extractH1Content(htmlContent),
+
+        // Metrics for H2 to H6 tags
+        h2ToH6TagCount: countH2ToH6Tags(htmlContent),
+        h2ToH6TagContent: extractH2ToH6Content(htmlContent),
     };
 
     return {
@@ -153,9 +157,22 @@ const countH1Tags = (htmlContent: string): number => {
 // Helper function to extract the content of all <h1> tags
 const extractH1Content = (htmlContent: string): string[] => {
     const matches = htmlContent.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/gi) || [];
-    return matches.map((h1Tag) => {
-        const textContent = h1Tag.replace(/<[^>]+>/g, "").trim();
-        return textContent;
+    return matches.map((h1Tag) => h1Tag.replace(/<[^>]+>/g, "").trim());
+};
+
+// Helper function to count <h2> to <h6> tags
+const countH2ToH6Tags = (htmlContent: string): number => {
+    return (htmlContent.match(/<h[2-6]\b[^>]*>/gi) || []).length;
+};
+
+// Helper function to extract content of <h2> to <h6> tags
+const extractH2ToH6Content = (htmlContent: string): { tag: string; content: string }[] => {
+    const matches = htmlContent.match(/<(h[2-6])\b[^>]*>([\s\S]*?)<\/\1>/gi) || [];
+    return matches.map((headingTag) => {
+        const tagMatch = headingTag.match(/<(h[2-6])/i); // Extract tag name (e.g., h2, h3)
+        const tagName = tagMatch ? tagMatch[1] : "unknown";
+        const textContent = headingTag.replace(/<[^>]+>/g, "").trim(); // Extract inner content
+        return { tag: tagName, content: textContent };
     });
 };
 

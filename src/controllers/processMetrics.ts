@@ -37,11 +37,7 @@ export const processMetrics = async (req: Request, res: Response): Promise<void>
 
             // Pass the plain object to the metrics calculation service
             const metrics = calculateMetrics(plainData);
-            console.log("Calculated Metrics:", metrics); // Debugging: Ensure metrics include new fields
 
-            // Debug logs to ensure new fields are calculated
-            console.log("H1 Tag Count:", metrics.seo.h1TagCount);
-            console.log("H1 Tag Content:", metrics.seo.h1TagContent);
 
             await Metrics.create({
                 userId: plainData.userId,

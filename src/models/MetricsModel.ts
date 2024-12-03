@@ -22,8 +22,10 @@ export interface IMetrics extends Document {
             keywordsPresent: string;
             hreflangTagPresent: boolean;
             languageDeclared: boolean;
-            h1TagCount: number; // New field
-            h1TagContent: string[]; // New field
+            h1TagCount: number;
+            h1TagContent: string[];
+            h2ToH6TagCount: number;
+            h2ToH6TagContent: { tag: string; content: string }[];
         };
         security: object;
         performance: object;
@@ -53,10 +55,10 @@ const MetricsSchema = new Schema<IMetrics>({
                 keywordsPresent: { type: String, required: true },
                 hreflangTagPresent: { type: Boolean, required: true },
                 languageDeclared: { type: Boolean, required: true },
-
-                // New fields for H1 tags
                 h1TagCount: { type: Number, required: true },
                 h1TagContent: { type: [String], required: true },
+                h2ToH6TagCount: { type: Number, required: true },
+                h2ToH6TagContent: { type: [{ tag: String, content: String }], required: true },
             }),
             required: true,
         },
