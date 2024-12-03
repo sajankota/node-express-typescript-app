@@ -4,7 +4,7 @@ const { parentPort, workerData } = require("worker_threads");
 const mongoose = require("mongoose");
 const { Content } = require("../models/ContentModel");
 const { Metrics } = require("../models/MetricsModel");
-const { calculateMetrics } = require("../services/metricsService");
+const { calculateMetrics } = require("../services/calculateMetrics");
 
 // MongoDB URI
 const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/roundcodebox";

@@ -3,7 +3,7 @@
 import { Request, Response } from "express";
 import { Content, IContent } from "../models/ContentModel";
 import { Metrics } from "../models/MetricsModel";
-import { calculateMetrics } from "../services/metricsService";
+import { calculateMetrics } from "../services/calculateMetrics";
 import { FilterQuery } from "mongoose";
 import { Worker } from "worker_threads";
 import path from "path";
