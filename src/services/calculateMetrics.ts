@@ -17,8 +17,8 @@ interface MetricResults {
         faviconUrl: string | null;
         robotsTxtAccessible: boolean;
         inPageLinks: number;
-        languageDeclared: boolean;
-        hreflangTagPresent: boolean;
+        languageDeclared: string | null;
+        hreflangTagPresent: string[];
         h1TagCount: number;
         h1TagContent: string[];
         h2ToH6TagCount: number;
@@ -27,6 +27,7 @@ interface MetricResults {
         canonicalTagUrl: string | null;
         noindexTagPresent: boolean;
         noindexHeaderPresent: boolean;
+        keywordsPresent: string;
     };
     security: {
         httpsEnabled: boolean;
@@ -54,6 +55,8 @@ export const calculateMetrics = (data: IContent): MetricResults => {
     const title = data.metadata.title || null;
     const metaDescription = data.metadata.description || null;
 
+    const contentKeywords = extractKeywords(htmlContent);
+
     const seoMetrics = {
         actualTitle: title,
         titlePresent: title !== null,
@@ -64,26 +67,23 @@ export const calculateMetrics = (data: IContent): MetricResults => {
         metaDescriptionLength: calculateLength(metaDescription),
         metaDescription: metaDescription || "No Meta Description",
         headingsCount: (htmlContent.match(/<h[1-6]>/g) || []).length,
-        contentKeywords: extractKeywords(htmlContent),
+        contentKeywords,
         seoFriendlyUrl: isSeoFriendlyUrl(url),
         faviconPresent: data.favicon !== null,
         faviconUrl: data.favicon || null,
         robotsTxtAccessible: isRobotsTxtAccessible(url),
         inPageLinks: (htmlContent.match(/<a /g) || []).length,
-        languageDeclared: htmlContent.includes('<html lang='),
-        keywordsPresent: extractKeywords(htmlContent).length > 0 ? "Yes" : "No",
-        hreflangTagPresent: hasHreflangTag(htmlContent),
+        languageDeclared: extractLangTag(htmlContent),
+        hreflangTagPresent: extractHreflangTags(htmlContent),
         h1TagCount: countH1Tags(htmlContent),
         h1TagContent: extractH1Content(htmlContent),
         h2ToH6TagCount: countH2ToH6Tags(htmlContent),
         h2ToH6TagContent: extractH2ToH6Content(htmlContent),
-
-        // Canonical tag metrics
         canonicalTagPresent: hasCanonicalTag(htmlContent).present,
         canonicalTagUrl: hasCanonicalTag(htmlContent).url,
         noindexTagPresent: hasNoindexTag(htmlContent),
-
         noindexHeaderPresent: hasNoindexHeader(data.headers),
+        keywordsPresent: contentKeywords.length > 0 ? "Yes" : "No",
     };
 
     return {
@@ -108,10 +108,31 @@ export const calculateMetrics = (data: IContent): MetricResults => {
     };
 };
 
+
 // --- Helper Functions ---
 
 /**
- * Check if the hreflang tag is present in the HTML content.
+ * Extract the lang attribute from the <html> tag.
+ */
+const extractLangTag = (htmlContent: string): string | null => {
+    const match = htmlContent.match(/<html[^>]+lang=["']([^"']+)["']/i);
+    return match ? match[1] : null;
+};
+
+
+/**
+ * Extract all hreflang tags from the <link> elements in the HTML content.
+ */
+const extractHreflangTags = (htmlContent: string): string[] => {
+    const matches = htmlContent.match(/<link[^>]+rel=["']alternate["'][^>]+hreflang=["']([^"']+)["']/gi) || [];
+    return matches.map((tag) => {
+        const hreflangMatch = tag.match(/hreflang=["']([^"']+)["']/i);
+        return hreflangMatch ? hreflangMatch[1] : "";
+    });
+};
+
+/**
+ * Check if the hreflang tag is present in the HTML content (legacy boolean check).
  */
 const hasHreflangTag = (htmlContent: string): boolean => {
     return /<link[^>]+rel=["']alternate["'][^>]+hreflang=["'][^"']+["']/i.test(htmlContent);

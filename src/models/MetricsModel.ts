@@ -20,8 +20,8 @@ export interface IMetrics extends Document {
             robotsTxtAccessible: boolean;
             inPageLinks: number;
             keywordsPresent: string;
-            hreflangTagPresent: boolean;
-            languageDeclared: boolean;
+            hreflangTagPresent: string[];
+            languageDeclared: string | null;
             h1TagCount: number;
             h1TagContent: string[];
             h2ToH6TagCount: number;
@@ -29,7 +29,7 @@ export interface IMetrics extends Document {
             canonicalTagPresent: boolean;
             canonicalTagUrl: string | null;
             noindexTagPresent: boolean;
-            noindexHeaderPresent: boolean; // New field for X-Robots-Tag
+            noindexHeaderPresent: boolean;
         };
         security: object;
         performance: object;
@@ -57,8 +57,8 @@ const MetricsSchema = new Schema<IMetrics>({
                 robotsTxtAccessible: { type: Boolean, required: true },
                 inPageLinks: { type: Number, required: true },
                 keywordsPresent: { type: String, required: true },
-                hreflangTagPresent: { type: Boolean, required: true },
-                languageDeclared: { type: Boolean, required: true },
+                hreflangTagPresent: { type: [String], default: [] },
+                languageDeclared: { type: String, default: null },
                 h1TagCount: { type: Number, required: true },
                 h1TagContent: { type: [String], required: true },
                 h2ToH6TagCount: { type: Number, required: true },
@@ -66,7 +66,7 @@ const MetricsSchema = new Schema<IMetrics>({
                 canonicalTagPresent: { type: Boolean, required: true },
                 canonicalTagUrl: { type: String, default: null },
                 noindexTagPresent: { type: Boolean, required: true },
-                noindexHeaderPresent: { type: Boolean, required: true }, // New field
+                noindexHeaderPresent: { type: Boolean, required: true },
             }),
             required: true,
         },
