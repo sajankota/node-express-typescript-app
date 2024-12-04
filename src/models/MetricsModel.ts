@@ -26,8 +26,9 @@ export interface IMetrics extends Document {
             h1TagContent: string[];
             h2ToH6TagCount: number;
             h2ToH6TagContent: { tag: string; content: string }[];
-            canonicalTagPresent: boolean; // New field
-            canonicalTagUrl: string | null; // New field
+            canonicalTagPresent: boolean;
+            canonicalTagUrl: string | null;
+            noindexTagPresent: boolean;
         };
         security: object;
         performance: object;
@@ -61,8 +62,9 @@ const MetricsSchema = new Schema<IMetrics>({
                 h1TagContent: { type: [String], required: true },
                 h2ToH6TagCount: { type: Number, required: true },
                 h2ToH6TagContent: { type: [{ tag: String, content: String }], required: true },
-                canonicalTagPresent: { type: Boolean, required: true }, // New field
-                canonicalTagUrl: { type: String, default: null }, // New field
+                canonicalTagPresent: { type: Boolean, required: true },
+                canonicalTagUrl: { type: String, default: null },
+                noindexTagPresent: { type: Boolean, required: true },
             }),
             required: true,
         },

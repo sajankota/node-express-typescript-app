@@ -23,8 +23,9 @@ interface MetricResults {
         h1TagContent: string[];
         h2ToH6TagCount: number;
         h2ToH6TagContent: { tag: string; content: string }[];
-        canonicalTagPresent: boolean; // New field
-        canonicalTagUrl: string | null; // New field
+        canonicalTagPresent: boolean;
+        canonicalTagUrl: string | null;
+        noindexTagPresent: boolean;
     };
     security: {
         httpsEnabled: boolean;
@@ -79,6 +80,7 @@ export const calculateMetrics = (data: IContent): MetricResults => {
         // Canonical tag metrics
         canonicalTagPresent: hasCanonicalTag(htmlContent).present,
         canonicalTagUrl: hasCanonicalTag(htmlContent).url,
+        noindexTagPresent: hasNoindexTag(htmlContent),
     };
 
     return {
@@ -190,6 +192,16 @@ const hasCanonicalTag = (htmlContent: string): { present: boolean; url: string |
     }
     return { present: false, url: null };
 };
+
+
+/**
+ * Check if a noindex tag is present in the HTML content.
+ */
+const hasNoindexTag = (htmlContent: string): boolean => {
+    return /<meta[^>]+name=["']robots["'][^>]*content=["'][^"']*noindex[^"']*["']/i.test(htmlContent);
+};
+
+
 
 /**
  * Check for mixed content on the page.
