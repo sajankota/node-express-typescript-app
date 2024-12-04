@@ -23,6 +23,8 @@ interface MetricResults {
         h1TagContent: string[];
         h2ToH6TagCount: number;
         h2ToH6TagContent: { tag: string; content: string }[];
+        canonicalTagPresent: boolean; // New field
+        canonicalTagUrl: string | null; // New field
     };
     security: {
         httpsEnabled: boolean;
@@ -71,10 +73,12 @@ export const calculateMetrics = (data: IContent): MetricResults => {
         hreflangTagPresent: hasHreflangTag(htmlContent),
         h1TagCount: countH1Tags(htmlContent),
         h1TagContent: extractH1Content(htmlContent),
-
-        // Metrics for H2 to H6 tags
         h2ToH6TagCount: countH2ToH6Tags(htmlContent),
         h2ToH6TagContent: extractH2ToH6Content(htmlContent),
+
+        // Canonical tag metrics
+        canonicalTagPresent: hasCanonicalTag(htmlContent).present,
+        canonicalTagUrl: hasCanonicalTag(htmlContent).url,
     };
 
     return {
@@ -174,6 +178,17 @@ const extractH2ToH6Content = (htmlContent: string): { tag: string; content: stri
         const textContent = headingTag.replace(/<[^>]+>/g, "").trim(); // Extract inner content
         return { tag: tagName, content: textContent };
     });
+};
+
+/**
+ * Check if a canonical tag is present and extract its URL.
+ */
+const hasCanonicalTag = (htmlContent: string): { present: boolean; url: string | null } => {
+    const match = htmlContent.match(/<link[^>]+rel=["']canonical["'][^>]*href=["']([^"']+)["']/i);
+    if (match && match[1]) {
+        return { present: true, url: match[1] };
+    }
+    return { present: false, url: null };
 };
 
 /**
