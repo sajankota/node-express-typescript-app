@@ -17,6 +17,7 @@ export interface IContent extends Document {
     textContent: string | null;
     dynamic: boolean;
     htmlContent: string;
+    headers?: Record<string, string | undefined>; // Add the `headers` property
     userId: string; // Added userId
     createdAt: Date;
 }
@@ -40,6 +41,7 @@ const ContentSchema = new Schema<IContent>({
     },
     dynamic: { type: Boolean, required: true },
     htmlContent: { type: String, required: true },
+    headers: { type: Map, of: String, required: false }, // Added `headers` field
     userId: { type: String, required: true }, // User ID field
     createdAt: { type: Date, default: Date.now },
 });

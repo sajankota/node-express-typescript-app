@@ -29,6 +29,7 @@ export interface IMetrics extends Document {
             canonicalTagPresent: boolean;
             canonicalTagUrl: string | null;
             noindexTagPresent: boolean;
+            noindexHeaderPresent: boolean; // New field for X-Robots-Tag
         };
         security: object;
         performance: object;
@@ -65,6 +66,7 @@ const MetricsSchema = new Schema<IMetrics>({
                 canonicalTagPresent: { type: Boolean, required: true },
                 canonicalTagUrl: { type: String, default: null },
                 noindexTagPresent: { type: Boolean, required: true },
+                noindexHeaderPresent: { type: Boolean, required: true }, // New field
             }),
             required: true,
         },

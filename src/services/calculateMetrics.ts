@@ -26,6 +26,7 @@ interface MetricResults {
         canonicalTagPresent: boolean;
         canonicalTagUrl: string | null;
         noindexTagPresent: boolean;
+        noindexHeaderPresent: boolean;
     };
     security: {
         httpsEnabled: boolean;
@@ -81,6 +82,8 @@ export const calculateMetrics = (data: IContent): MetricResults => {
         canonicalTagPresent: hasCanonicalTag(htmlContent).present,
         canonicalTagUrl: hasCanonicalTag(htmlContent).url,
         noindexTagPresent: hasNoindexTag(htmlContent),
+
+        noindexHeaderPresent: hasNoindexHeader(data.headers),
     };
 
     return {
@@ -201,6 +204,18 @@ const hasNoindexTag = (htmlContent: string): boolean => {
     return /<meta[^>]+name=["']robots["'][^>]*content=["'][^"']*noindex[^"']*["']/i.test(htmlContent);
 };
 
+
+/**
+ * Check if an X-Robots-Tag header is present.
+ */
+const hasNoindexHeader = (headers?: Record<string, string | undefined>): boolean => {
+    if (!headers) return false; // Gracefully handle missing headers
+    const xRobotsTag = headers["x-robots-tag"];
+    if (xRobotsTag) {
+        return /noindex/i.test(xRobotsTag);
+    }
+    return false;
+};
 
 
 /**

@@ -35,9 +35,12 @@ export const processMetrics = async (req: Request, res: Response): Promise<void>
             // Convert Mongoose document to plain object
             const plainData = data.toObject();
 
+            // Add headers if available (Example: X-Robots-Tag or others)
+            plainData.headers = req.headers as Record<string, string | undefined>; // Assign headers
+
             // Pass the plain object to the metrics calculation service
             const metrics = calculateMetrics(plainData);
-
+            console.log("Calculated Metrics:", metrics); // Debugging: Ensure metrics include new fields
 
             await Metrics.create({
                 userId: plainData.userId,
