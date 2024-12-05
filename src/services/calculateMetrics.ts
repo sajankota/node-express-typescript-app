@@ -1,12 +1,18 @@
 // src/services/calculateMetrics.ts
 
 import { IContent } from "../models/ContentModel";
+import * as SEOHelpers from "./helpers/SEOHelpers";
+import * as SecurityHelpers from "./helpers/SecurityHelpers";
+import * as PerformanceHelpers from "./helpers/PerformanceHelpers";
+import * as MiscellaneousHelpers from "./helpers/MiscellaneousHelpers";
+import { TITLE_MESSAGES } from "../constants/seoMetricsMessages"; // Import constants
 
 interface MetricResults {
     seo: {
         actualTitle: string | null;
         titlePresent: boolean;
         titleLength: number;
+        titleMessage: string; // Add titleMessage to the metrics
         actualMetaDescription: string | null;
         metaDescriptionPresent: boolean;
         metaDescriptionLength: number;
@@ -17,7 +23,17 @@ interface MetricResults {
         faviconUrl: string | null;
         robotsTxtAccessible: boolean;
         inPageLinks: number;
-        languageDeclared: boolean;
+        languageDeclared: string | null;
+        hreflangTagPresent: string[];
+        h1TagCount: number;
+        h1TagContent: string[];
+        h2ToH6TagCount: number;
+        h2ToH6TagContent: { tag: string; content: string }[];
+        canonicalTagPresent: boolean;
+        canonicalTagUrl: string | null;
+        noindexTagPresent: boolean;
+        noindexHeaderPresent: boolean;
+        keywordsPresent: string;
     };
     security: {
         httpsEnabled: boolean;
@@ -27,7 +43,12 @@ interface MetricResults {
     };
     performance: {
         pageSizeKb: number;
-        httpRequests: number;
+        httpRequests: {
+            total: number;
+            links: number;
+            scripts: number;
+            images: number;
+        };
         textCompressionEnabled: boolean;
     };
     miscellaneous: {
@@ -38,143 +59,122 @@ interface MetricResults {
     };
 }
 
-export const calculateMetrics = (data: IContent): MetricResults => {
+/**
+ * Main function to calculate metrics for the given content.
+ */
+export const calculateMetrics = async (data: IContent): Promise<MetricResults> => {
     const url = data.url;
-    const htmlContent = data.htmlContent;
+    const htmlContent = data.htmlContent || ""; // Default to empty string if missing
+    const headers = data.headers || {}; // Default to an empty object if headers are missing
 
-    const title = data.metadata.title || null;
-    const metaDescription = data.metadata.description || null;
-
-    const seoMetrics = {
-        actualTitle: title,
-        titlePresent: title !== null,
-        titleLength: calculateLength(title),
-        title: title || "Unknown Title", // Ensure title is never undefined
-        actualMetaDescription: metaDescription,
-        metaDescriptionPresent: metaDescription !== null,
-        metaDescriptionLength: calculateLength(metaDescription),
-        metaDescription: metaDescription || "No Meta Description", // Ensure metaDescription is never undefined
-        headingsCount: (htmlContent.match(/<h[1-6]>/g) || []).length,
-        contentKeywords: extractKeywords(htmlContent),
-        seoFriendlyUrl: isSeoFriendlyUrl(url),
-        faviconPresent: data.favicon !== null,
-        faviconUrl: data.favicon || null,
-        robotsTxtAccessible: isRobotsTxtAccessible(url),
-        inPageLinks: (htmlContent.match(/<a /g) || []).length,
-        languageDeclared: htmlContent.includes('<html lang='),
-        keywordsPresent: extractKeywords(htmlContent).length > 0 ? "Yes" : "No", // Ensure keywordsPresent is always a string
-    };
-
-    return {
-        seo: seoMetrics,
-        security: {
-            httpsEnabled: url.startsWith("https://"),
-            mixedContent: hasMixedContent(htmlContent),
-            serverSignatureHidden: true,
-            hstsEnabled: true,
-        },
-        performance: {
-            pageSizeKb: Math.ceil(htmlContent.length / 1024),
-            httpRequests: countHttpRequests(htmlContent),
-            textCompressionEnabled: htmlContent.includes("Content-Encoding: gzip"),
-        },
-        miscellaneous: {
-            metaViewportPresent: htmlContent.includes('<meta name="viewport"'),
-            characterSet: extractCharacterSet(htmlContent),
-            sitemapAccessible: isSitemapAccessible(url),
-            textToHtmlRatio: calculateTextToHtmlRatio(htmlContent, data.textContent),
-        },
-    };
-};
-
-
-// --- Helper Functions ---
-
-/**
- * Calculate the length of a given string.
- * If the input is null or undefined, returns 0.
- */
-const calculateLength = (text: string | null | undefined): number => {
-    if (!text) return 0;
-    return text.trim().length;
-};
-
-/**
- * Extract keywords from the meta tag in the HTML content.
- */
-const extractKeywords = (htmlContent: string): string[] => {
-    const metaTag = htmlContent.match(/<meta name="keywords" content="([^"]+)"/i);
-    if (metaTag && metaTag[1]) {
-        return metaTag[1].split(",").map((keyword) => keyword.trim());
+    // Log warnings for missing critical data
+    if (!htmlContent) {
+        console.warn("[calculateMetrics] HTML content is missing or empty.");
     }
-    return [];
-};
 
-/**
- * Check if the URL is SEO-friendly.
- */
-const isSeoFriendlyUrl = (url: string): boolean => {
-    const seoFriendlyPattern = /^[a-z0-9-]+$/i;
-    const urlPath = new URL(url).pathname.split("/").filter((part) => part.length > 0);
-    return urlPath.every((segment) => seoFriendlyPattern.test(segment));
-};
+    if (!url) {
+        throw new Error("Cannot calculate metrics without a valid URL.");
+    }
 
-/**
- * Check if the robots.txt file is accessible.
- */
-const isRobotsTxtAccessible = (url: string): boolean => {
     try {
-        const robotsTxtUrl = new URL("/robots.txt", url).href;
-        return true; // Placeholder for actual HTTP request logic
-    } catch {
-        return false;
+        // ** SEO Metrics **
+        const title = data.metadata.title || null; // Fetch the title
+        const titlePresent = SEOHelpers.isTitlePresent(title); // Check if title exists
+        const titleLength = SEOHelpers.calculateLength(title); // Calculate title length
+
+        let titleMessage = "";
+        if (titlePresent) {
+            if (titleLength < 50) {
+                titleMessage = TITLE_MESSAGES.TITLE_LENGTH_SHORT;
+            } else if (titleLength > 60) {
+                titleMessage = TITLE_MESSAGES.TITLE_LENGTH_LONG;
+            } else {
+                titleMessage = TITLE_MESSAGES.TITLE_LENGTH_OPTIMAL;
+            }
+        } else {
+            titleMessage = TITLE_MESSAGES.TITLE_MISSING;
+        }
+
+        const seoMetrics = {
+            title: title || "", // Map to required schema field
+            actualTitle: title, // Preserve original field for reference
+            titlePresent,
+            titleLength,
+            titleMessage,
+            metaDescription: data.metadata.description || "", // Map to required schema field
+            actualMetaDescription: data.metadata.description || null, // Preserve original field
+            metaDescriptionPresent: SEOHelpers.isMetaDescriptionPresent(data.metadata.description),
+            metaDescriptionLength: SEOHelpers.calculateLength(data.metadata.description),
+            headingsCount: SEOHelpers.extractAllHeadings(htmlContent).length,
+            contentKeywords: SEOHelpers.extractKeywords(htmlContent),
+            seoFriendlyUrl: SEOHelpers.isSeoFriendlyUrl(url),
+            faviconPresent: !!data.favicon,
+            faviconUrl: data.favicon || null,
+            robotsTxtAccessible: SEOHelpers.isRobotsTxtAccessible(url),
+            inPageLinks: SEOHelpers.countInPageLinks(htmlContent),
+            languageDeclared: SEOHelpers.extractLangTag(htmlContent),
+            hreflangTagPresent: SEOHelpers.extractHreflangTags(htmlContent),
+            h1TagCount: SEOHelpers.countTagsByLevel(
+                SEOHelpers.extractAllHeadings(htmlContent),
+                "h1"
+            ),
+            h1TagContent: SEOHelpers.extractContentByLevel(
+                SEOHelpers.extractAllHeadings(htmlContent),
+                "h1"
+            ),
+            h2ToH6TagCount: SEOHelpers.countTagsByLevel(
+                SEOHelpers.extractAllHeadings(htmlContent),
+                "h2",
+                "h3",
+                "h4",
+                "h5",
+                "h6"
+            ),
+            h2ToH6TagContent: SEOHelpers.extractContentByRange(
+                SEOHelpers.extractAllHeadings(htmlContent),
+                "h2",
+                "h6"
+            ),
+            canonicalTagPresent: SEOHelpers.hasCanonicalTag(htmlContent).present,
+            canonicalTagUrl: SEOHelpers.hasCanonicalTag(htmlContent).url,
+            noindexTagPresent: SEOHelpers.hasNoindexTag(htmlContent),
+            noindexHeaderPresent: SEOHelpers.hasNoindexHeader(headers),
+            keywordsPresent: SEOHelpers.extractKeywords(htmlContent).length > 0 ? "Yes" : "No",
+        };
+
+        // ** Security Metrics **
+        const securityMetrics = {
+            httpsEnabled: SecurityHelpers.isHttpsEnabled(url),
+            mixedContent: SecurityHelpers.hasMixedContent(htmlContent),
+            serverSignatureHidden: SecurityHelpers.isServerSignatureHidden(headers),
+            hstsEnabled: SecurityHelpers.isHstsEnabled(headers),
+        };
+
+        // ** Performance Metrics **
+        const performanceMetrics = {
+            pageSizeKb: PerformanceHelpers.calculatePageSize(htmlContent),
+            httpRequests: PerformanceHelpers.countHttpRequests(htmlContent),
+            textCompressionEnabled: PerformanceHelpers.isTextCompressionEnabled(headers),
+        };
+
+        // ** Miscellaneous Metrics **
+        const miscellaneousMetrics = {
+            metaViewportPresent: MiscellaneousHelpers.isMetaViewportPresent(htmlContent),
+            characterSet: MiscellaneousHelpers.extractCharacterSet(htmlContent),
+            sitemapAccessible: await MiscellaneousHelpers.isSitemapAccessible(url),
+            textToHtmlRatio: MiscellaneousHelpers.calculateTextToHtmlRatio(htmlContent, data.textContent),
+        };
+
+        // Return all metrics as a single object
+        return {
+            seo: seoMetrics,
+            security: securityMetrics,
+            performance: performanceMetrics,
+            miscellaneous: miscellaneousMetrics,
+        };
+    } catch (error) {
+        console.error("[calculateMetrics] Error calculating metrics:", error);
+        throw new Error("Failed to calculate metrics.");
     }
 };
 
-/**
- * Check for mixed content on the page.
- */
-const hasMixedContent = (htmlContent: string): boolean => {
-    const httpLinks = (htmlContent.match(/http:\/\//g) || []).length;
-    const httpsLinks = (htmlContent.match(/https:\/\//g) || []).length;
-    return httpLinks > 0 && httpsLinks > 0;
-};
-
-/**
- * Count the number of HTTP requests in the HTML content.
- */
-const countHttpRequests = (htmlContent: string): number => {
-    const links = (htmlContent.match(/<link /g) || []).length;
-    const scripts = (htmlContent.match(/<script /g) || []).length;
-    const images = (htmlContent.match(/<img /g) || []).length;
-    return links + scripts + images;
-};
-
-/**
- * Extract the character set from the HTML content.
- */
-const extractCharacterSet = (htmlContent: string): string | null => {
-    const charsetMatch = htmlContent.match(/<meta charset="([^"]+)"/i);
-    return charsetMatch ? charsetMatch[1] : null;
-};
-
-/**
- * Check if the sitemap is accessible.
- */
-const isSitemapAccessible = (url: string): boolean => {
-    try {
-        const sitemapUrl = new URL("/sitemap.xml", url).href;
-        return true; // Placeholder for actual HTTP request logic
-    } catch {
-        return false;
-    }
-};
-
-/**
- * Calculate the text-to-HTML ratio.
- */
-const calculateTextToHtmlRatio = (htmlContent: string, textContent: string | null): number => {
-    const htmlLength = htmlContent.length;
-    const textLength = textContent?.length || 0;
-    return textLength / htmlLength;
-};

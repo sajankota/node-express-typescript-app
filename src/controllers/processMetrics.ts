@@ -9,7 +9,7 @@ import { Worker } from "worker_threads";
 import path from "path";
 
 /**
- * Manually process metrics in a single thread (not recommended for production scale).
+ * Process metrics for the given URL.
  */
 export const processMetrics = async (req: Request, res: Response): Promise<void> => {
     const { userId, url } = req.body;
@@ -27,19 +27,25 @@ export const processMetrics = async (req: Request, res: Response): Promise<void>
             return;
         }
 
-        let processedCount = 0;
-        const metricsData = []; // Collect metrics for response
+        const metricsData = [];
 
         // Step 2: Process each URL and calculate metrics
         for (const data of scrapedData) {
             // Convert Mongoose document to plain object
             const plainData = data.toObject();
+            const metrics = await calculateMetrics(plainData);
 
-            // Pass the plain object to the metrics calculation service
-            const metrics = calculateMetrics(plainData);
-            console.log("Calculated Metrics:", metrics); // Debugging: Ensure metrics include new fields
+            // Validate metrics before saving
+            if (
+                !metrics.seo ||
+                !metrics.security ||
+                !metrics.performance ||
+                !metrics.miscellaneous
+            ) {
+                console.error("[processMetrics] Incomplete metrics:", metrics);
+                throw new Error("Incomplete metrics data.");
+            }
 
-            // Step 3: Save the processed metrics to the new collection
             await Metrics.create({
                 userId: plainData.userId,
                 url: plainData.url,
@@ -47,30 +53,25 @@ export const processMetrics = async (req: Request, res: Response): Promise<void>
                 createdAt: new Date(),
             });
 
-            metricsData.push(metrics); // Collect metrics for API response
-            processedCount++;
+            metricsData.push(metrics);
         }
 
         // Step 4: Send response with metrics included
         res.status(200).json({
             message: "Metrics processed successfully",
-            processedCount,
-            metrics: scrapedData.map((data) => calculateMetrics(data.toObject())), // Include all calculated metrics
+            metrics: metricsData,
         });
     } catch (error) {
-        console.error("[Process Metrics] Error:", error);
-
-        // Handle error type properly
-        const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+        // Ensure `error` is an instance of Error before accessing its `message` property
+        const errorMessage =
+            error instanceof Error ? error.message : "An unknown error occurred.";
+        console.error("[processMetrics] Error:", errorMessage);
         res.status(500).json({ message: "Error processing metrics", error: errorMessage });
     }
 };
 
 /**
  * Trigger metric processing using worker threads.
- * 
- * @param userId - The ID of the user for which metrics are being processed
- * @param url - The URL to process metrics for
  */
 export const triggerMetricProcessing = (userId: string, url: string): void => {
     console.log(`[Worker] Triggering metric processing for URL: ${url}`);
@@ -99,6 +100,9 @@ export const triggerMetricProcessing = (userId: string, url: string): void => {
             }
         });
     } catch (error) {
-        console.error("[Worker Trigger Error]:", error);
+        // Ensure `error` is an instance of Error before accessing its `message` property
+        const errorMessage =
+            error instanceof Error ? error.message : "An unknown error occurred.";
+        console.error("[Worker Trigger Error]:", errorMessage);
     }
 };
