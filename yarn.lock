@@ -2483,9 +2483,9 @@ metascraper-iframe@^5.45.25:
     p-reflect "~2.1.0"
 
 metascraper-image@^5.45.25:
-  version "5.45.25"
-  resolved "https://registry.yarnpkg.com/metascraper-image/-/metascraper-image-5.45.25.tgz#b50707b98f424f5e885e9633e4ca559c1ef87240"
-  integrity sha512-AQhyMLZF+N78FDRKgsJlB4EOx4Ul6b2sb3ZTK6NRlLy0zqXDVnY6o6kEmGdxq7KSJLbOYSPmBzjbtO+LKhT27Q==
+  version "5.45.27"
+  resolved "https://registry.yarnpkg.com/metascraper-image/-/metascraper-image-5.45.27.tgz#4372d7ea07289f52833956e421fe178ed1374c61"
+  integrity sha512-vbz+cUD74tgxjwCb+RS1LDp9wH5AXaLftgalPFCSmTIDUPwVt+YhqeIBqnOqHH+Q06JVqIkqItR1G+6tlsBCFQ==
   dependencies:
     "@metascraper/helpers" "^5.45.25"
 
@@ -3174,10 +3174,10 @@ punycode@^2.1.1, punycode@^2.3.0, punycode@^2.3.1:
   resolved "https://registry.yarnpkg.com/punycode/-/punycode-2.3.1.tgz#027422e2faec0b25e1549c3e1bd8309b9133b6e5"
   integrity sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==
 
-puppeteer-core@23.10.0:
-  version "23.10.0"
-  resolved "https://registry.yarnpkg.com/puppeteer-core/-/puppeteer-core-23.10.0.tgz#d7d6007927a717863930d62b20f00bbf337219a2"
-  integrity sha512-7pv6kFget4Iki0RLBDowi35vaccz73XpC6/FAnfCrYa2IXVUlBHfZw+HGWzlvvTGwM9HHd32rgCrIDzil3kj+w==
+puppeteer-core@23.10.1:
+  version "23.10.1"
+  resolved "https://registry.yarnpkg.com/puppeteer-core/-/puppeteer-core-23.10.1.tgz#46feb3150454e799f1364c8e91d207dce3adbcb9"
+  integrity sha512-ey6NwixHYEUnhCA/uYi7uQQ4a0CZw4k+MatbHXGl5GEzaiRQziYUxc2HGpdQZ/gnh4KQWAKkocyIg1/dIm5d0g==
   dependencies:
     "@puppeteer/browsers" "2.5.0"
     chromium-bidi "0.8.0"
@@ -3234,15 +3234,15 @@ puppeteer-extra@^3.3.6:
     deepmerge "^4.2.2"
 
 puppeteer@^23.9.0:
-  version "23.10.0"
-  resolved "https://registry.yarnpkg.com/puppeteer/-/puppeteer-23.10.0.tgz#115192743452fa0408979868bc1597b59c0da3d2"
-  integrity sha512-vLpEvUM8POKBX4j6y/yyD4oGRhS1oBAbMn3lYpz1yeakhRsA8IhF5QmjXwAIQYGdR/INxyFiY6kQDoUtLGDP3g==
+  version "23.10.1"
+  resolved "https://registry.yarnpkg.com/puppeteer/-/puppeteer-23.10.1.tgz#b9f32cf7652d7a878ad5a96040d02b71578bc515"
+  integrity sha512-kbcO+vu91fgUyBzEwByPe4q5lEEuBq4cuOZnZeRL42G7r5UrfbUFlxBJayXBLBsD6pREdk/92ZFwFQq3MaN6ww==
   dependencies:
     "@puppeteer/browsers" "2.5.0"
     chromium-bidi "0.8.0"
     cosmiconfig "^9.0.0"
     devtools-protocol "0.0.1367902"
-    puppeteer-core "23.10.0"
+    puppeteer-core "23.10.1"
     typed-query-selector "^2.12.0"
 
 qs@6.13.0:
@@ -3975,9 +3975,9 @@ whatwg-url@^13.0.0:
     webidl-conversions "^7.0.0"
 
 whatwg-url@^14.0.0:
-  version "14.0.0"
-  resolved "https://registry.yarnpkg.com/whatwg-url/-/whatwg-url-14.0.0.tgz#00baaa7fd198744910c4b1ef68378f2200e4ceb6"
-  integrity sha512-1lfMEm2IEr7RIV+f4lUNPOqfFL+pO+Xw3fJSqmjX9AbXcXcYOkCe1P6+9VBZB6n94af16NfZf+sSk0JCBZC9aw==
+  version "14.1.0"
+  resolved "https://registry.yarnpkg.com/whatwg-url/-/whatwg-url-14.1.0.tgz#fffebec86cc8e6c2a657e50dc606207b870f0ab3"
+  integrity sha512-jlf/foYIKywAt3x/XWKZ/3rz8OSJPiWktjmk891alJUEjiVxKX9LEO92qH3hv4aJ0mN3MWPvGMCy8jQi95xK4w==
   dependencies:
     tr46 "^5.0.0"
     webidl-conversions "^7.0.0"
