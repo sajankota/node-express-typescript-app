@@ -50,9 +50,21 @@ const connectWorkerToDB = async () => {
       console.log("[Worker] Favicon URL found in scraped data:", scrapedData.favicon);
     }
 
-    // Step 3: Calculate metrics
-    const metrics = calculateMetrics(scrapedData.toObject());
+    // Step 3: Calculate metrics (ensure we await the result)
+    const metrics = await calculateMetrics(scrapedData.toObject());
     console.log("[Worker] Calculated Metrics:", JSON.stringify(metrics, null, 2)); // Log calculated metrics
+
+    // Validate that all required fields exist in the metrics object
+    if (
+      !metrics.seo ||
+      !metrics.security ||
+      !metrics.performance ||
+      !metrics.miscellaneous
+    ) {
+      throw new Error(
+        "Metrics validation failed: Missing required fields (seo, security, performance, miscellaneous)"
+      );
+    }
 
     // Step 4: Save the processed metrics to the `Metrics` collection
     await Metrics.create({

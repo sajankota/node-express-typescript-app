@@ -2,42 +2,74 @@
 
 import mongoose, { Schema, Document } from "mongoose";
 
+// Define interfaces for each metric type
+interface SEO {
+    actualTitle: string | null;
+    title: string;
+    titlePresent: boolean;
+    titleLength: number;
+    titleMessage: string;
+    actualMetaDescription: string | null;
+    metaDescription: string;
+    metaDescriptionLength: number;
+    headingsCount: number;
+    seoFriendlyUrl: boolean;
+    faviconPresent: boolean;
+    faviconUrl: string | null;
+    robotsTxtAccessible: boolean;
+    inPageLinks: number;
+    keywordsPresent: string;
+    hreflangTagPresent: string[];
+    languageDeclared: string | null;
+    h1TagCount: number;
+    h1TagContent: string[];
+    h2ToH6TagCount: number;
+    h2ToH6TagContent: { tag: string; content: string }[];
+    canonicalTagPresent: boolean;
+    canonicalTagUrl: string | null;
+    noindexTagPresent: boolean;
+    noindexHeaderPresent: boolean;
+}
+
+interface Security {
+    httpsEnabled: boolean;
+    mixedContent: boolean;
+    serverSignatureHidden: boolean;
+    hstsEnabled: boolean;
+}
+
+interface Performance {
+    pageSizeKb: number;
+    httpRequests: {
+        total: number;
+        links: number;
+        scripts: number;
+        images: number;
+    };
+    textCompressionEnabled: boolean;
+}
+
+interface Miscellaneous {
+    metaViewportPresent: boolean;
+    characterSet: string | null;
+    sitemapAccessible: boolean;
+    textToHtmlRatio: number;
+}
+
+// Define the IMetrics interface
 export interface IMetrics extends Document {
     userId: string;
     url: string;
     metrics: {
-        seo: {
-            actualTitle: string | null;
-            title: string;
-            titleLength: number;
-            actualMetaDescription: string | null;
-            metaDescription: string;
-            metaDescriptionLength: number;
-            headingsCount: number;
-            seoFriendlyUrl: boolean;
-            faviconPresent: boolean;
-            faviconUrl: string | null;
-            robotsTxtAccessible: boolean;
-            inPageLinks: number;
-            keywordsPresent: string;
-            hreflangTagPresent: string[];
-            languageDeclared: string | null;
-            h1TagCount: number;
-            h1TagContent: string[];
-            h2ToH6TagCount: number;
-            h2ToH6TagContent: { tag: string; content: string }[];
-            canonicalTagPresent: boolean;
-            canonicalTagUrl: string | null;
-            noindexTagPresent: boolean;
-            noindexHeaderPresent: boolean;
-        };
-        security: object;
-        performance: object;
-        miscellaneous: object;
+        seo: SEO;
+        security: Security;
+        performance: Performance;
+        miscellaneous: Miscellaneous;
     };
     createdAt: Date;
 }
 
+// Define the Mongoose schema
 const MetricsSchema = new Schema<IMetrics>({
     userId: { type: String, required: true },
     url: { type: String, required: true },
@@ -46,7 +78,9 @@ const MetricsSchema = new Schema<IMetrics>({
             type: new Schema({
                 actualTitle: { type: String, default: null },
                 title: { type: String, required: true },
+                titlePresent: { type: Boolean, required: true },
                 titleLength: { type: Number, required: true },
+                titleMessage: { type: String, required: true },
                 actualMetaDescription: { type: String, default: null },
                 metaDescription: { type: String, required: true },
                 metaDescriptionLength: { type: Number, required: true },
@@ -70,11 +104,43 @@ const MetricsSchema = new Schema<IMetrics>({
             }),
             required: true,
         },
-        security: { type: Object, required: true },
-        performance: { type: Object, required: true },
-        miscellaneous: { type: Object, required: true },
+        security: {
+            type: new Schema({
+                httpsEnabled: { type: Boolean, required: true },
+                mixedContent: { type: Boolean, required: true },
+                serverSignatureHidden: { type: Boolean, required: true },
+                hstsEnabled: { type: Boolean, required: true },
+            }),
+            required: true,
+        },
+        performance: {
+            type: new Schema({
+                pageSizeKb: { type: Number, required: true },
+                httpRequests: {
+                    type: new Schema({
+                        total: { type: Number, required: true },
+                        links: { type: Number, required: true },
+                        scripts: { type: Number, required: true },
+                        images: { type: Number, required: true },
+                    }),
+                    required: true,
+                },
+                textCompressionEnabled: { type: Boolean, required: true },
+            }),
+            required: true,
+        },
+        miscellaneous: {
+            type: new Schema({
+                metaViewportPresent: { type: Boolean, required: true },
+                characterSet: { type: String, default: null },
+                sitemapAccessible: { type: Boolean, required: true },
+                textToHtmlRatio: { type: Number, required: true },
+            }),
+            required: true,
+        },
     },
     createdAt: { type: Date, default: Date.now },
 });
 
+// Export the Mongoose model
 export const Metrics = mongoose.model<IMetrics>("Metrics", MetricsSchema);
