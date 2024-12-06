@@ -5,17 +5,20 @@ import * as SEOHelpers from "./helpers/SEOHelpers";
 import * as SecurityHelpers from "./helpers/SecurityHelpers";
 import * as PerformanceHelpers from "./helpers/PerformanceHelpers";
 import * as MiscellaneousHelpers from "./helpers/MiscellaneousHelpers";
-import { TITLE_MESSAGES } from "../constants/seoMetricsMessages"; // Import constants
+import { TITLE_MESSAGES, META_DESCRIPTION_MESSAGES } from "../constants/seoMetricsMessages"; // Import constants
 
 interface MetricResults {
     seo: {
         actualTitle: string | null;
+        title: string | null;
         titlePresent: boolean;
         titleLength: number;
-        titleMessage: string; // Add titleMessage to the metrics
+        titleMessage: string;
         actualMetaDescription: string | null;
+        metaDescription: string | null;
         metaDescriptionPresent: boolean;
         metaDescriptionLength: number;
+        metaDescriptionMessage: string;
         headingsCount: number;
         contentKeywords: string[];
         seoFriendlyUrl: boolean;
@@ -78,33 +81,43 @@ export const calculateMetrics = async (data: IContent): Promise<MetricResults> =
 
     try {
         // ** SEO Metrics **
-        const title = data.metadata.title || null; // Fetch the title
-        const titlePresent = SEOHelpers.isTitlePresent(title); // Check if title exists
-        const titleLength = SEOHelpers.calculateLength(title); // Calculate title length
+        // Title Metrics
+        const title = data.metadata.title || null; // Default to null
+        const titlePresent = !!title;
+        const titleLength = title ? title.length : 0;
+        const titleMessage = titlePresent
+            ? titleLength < 50
+                ? TITLE_MESSAGES.TITLE_LENGTH_SHORT
+                : titleLength > 60
+                    ? TITLE_MESSAGES.TITLE_LENGTH_LONG
+                    : TITLE_MESSAGES.TITLE_LENGTH_OPTIMAL
+            : TITLE_MESSAGES.TITLE_MISSING;
 
-        let titleMessage = "";
-        if (titlePresent) {
-            if (titleLength < 50) {
-                titleMessage = TITLE_MESSAGES.TITLE_LENGTH_SHORT;
-            } else if (titleLength > 60) {
-                titleMessage = TITLE_MESSAGES.TITLE_LENGTH_LONG;
-            } else {
-                titleMessage = TITLE_MESSAGES.TITLE_LENGTH_OPTIMAL;
-            }
-        } else {
-            titleMessage = TITLE_MESSAGES.TITLE_MISSING;
-        }
+        // Meta Description Metrics
+        const metaDescription = data.metadata.description || null; // Default to null
+        const metaDescriptionPresent = !!metaDescription;
+        const metaDescriptionLength = metaDescription ? metaDescription.length : 0;
+        const metaDescriptionMessage = metaDescriptionPresent
+            ? metaDescriptionLength < 150
+                ? META_DESCRIPTION_MESSAGES.META_DESCRIPTION_LENGTH_SHORT
+                : metaDescriptionLength > 160
+                    ? META_DESCRIPTION_MESSAGES.META_DESCRIPTION_LENGTH_LONG
+                    : META_DESCRIPTION_MESSAGES.META_DESCRIPTION_LENGTH_OPTIMAL
+            : META_DESCRIPTION_MESSAGES.META_DESCRIPTION_MISSING;
+
+
 
         const seoMetrics = {
-            title: title || "", // Map to required schema field
-            actualTitle: title, // Preserve original field for reference
+            title,
+            actualTitle: title,
             titlePresent,
             titleLength,
             titleMessage,
-            metaDescription: data.metadata.description || "", // Map to required schema field
-            actualMetaDescription: data.metadata.description || null, // Preserve original field
-            metaDescriptionPresent: SEOHelpers.isMetaDescriptionPresent(data.metadata.description),
-            metaDescriptionLength: SEOHelpers.calculateLength(data.metadata.description),
+            metaDescription,
+            actualMetaDescription: metaDescription,
+            metaDescriptionPresent,
+            metaDescriptionLength,
+            metaDescriptionMessage,
             headingsCount: SEOHelpers.extractAllHeadings(htmlContent).length,
             contentKeywords: SEOHelpers.extractKeywords(htmlContent),
             seoFriendlyUrl: SEOHelpers.isSeoFriendlyUrl(url),
@@ -177,4 +190,3 @@ export const calculateMetrics = async (data: IContent): Promise<MetricResults> =
         throw new Error("Failed to calculate metrics.");
     }
 };
-

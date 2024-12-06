@@ -5,13 +5,15 @@ import mongoose, { Schema, Document } from "mongoose";
 // Define interfaces for each metric type
 interface SEO {
     actualTitle: string | null;
-    title: string;
+    title: string | null; // Optional
     titlePresent: boolean;
     titleLength: number;
     titleMessage: string;
     actualMetaDescription: string | null;
-    metaDescription: string;
+    metaDescription: string | null; // Optional
+    metaDescriptionPresent: boolean;
     metaDescriptionLength: number;
+    metaDescriptionMessage: string;
     headingsCount: number;
     seoFriendlyUrl: boolean;
     faviconPresent: boolean;
@@ -77,13 +79,15 @@ const MetricsSchema = new Schema<IMetrics>({
         seo: {
             type: new Schema({
                 actualTitle: { type: String, default: null },
-                title: { type: String, required: true },
+                title: { type: String, default: null }, // Make it optional
                 titlePresent: { type: Boolean, required: true },
                 titleLength: { type: Number, required: true },
                 titleMessage: { type: String, required: true },
                 actualMetaDescription: { type: String, default: null },
-                metaDescription: { type: String, required: true },
+                metaDescription: { type: String, default: null }, // Make it optional
+                metaDescriptionPresent: { type: Boolean, required: true },
                 metaDescriptionLength: { type: Number, required: true },
+                metaDescriptionMessage: { type: String, required: true },
                 headingsCount: { type: Number, required: true },
                 seoFriendlyUrl: { type: Boolean, required: true },
                 faviconPresent: { type: Boolean, required: true },
@@ -96,7 +100,10 @@ const MetricsSchema = new Schema<IMetrics>({
                 h1TagCount: { type: Number, required: true },
                 h1TagContent: { type: [String], required: true },
                 h2ToH6TagCount: { type: Number, required: true },
-                h2ToH6TagContent: { type: [{ tag: String, content: String }], required: true },
+                h2ToH6TagContent: {
+                    type: [{ tag: String, content: String }],
+                    required: true,
+                },
                 canonicalTagPresent: { type: Boolean, required: true },
                 canonicalTagUrl: { type: String, default: null },
                 noindexTagPresent: { type: Boolean, required: true },
