@@ -121,19 +121,50 @@ export const hasCanonicalTag = (htmlContent: string): { present: boolean; url: s
     return { present: !!match, url: match ? match[1] : null };
 };
 
+
 /**
- * Check if a noindex tag is present.
+ * Check if a noindex tag is present in the HTML content.
+ * This function ensures the `meta` tag with `name="robots"` contains the `noindex` directive.
+ *
+ * @param htmlContent - The HTML content of the webpage as a string.
+ * @returns `true` if a noindex tag is found, `false` otherwise.
  */
 export const hasNoindexTag = (htmlContent: string): boolean => {
-    return /<meta[^>]+name=["']robots["'][^>]*content=["'].*noindex.*["']/i.test(htmlContent);
+    if (!htmlContent) {
+        console.warn("[hasNoindexTag] Empty HTML content provided.");
+        return false;
+    }
+
+    try {
+        // Regular expression to match <meta name="robots" content="...noindex...">
+        const noindexMetaRegex = /<meta[^>]*name=["']robots["'][^>]*content=["'][^"']*noindex[^"']*["'][^>]*>/i;
+        return noindexMetaRegex.test(htmlContent);
+    } catch (error) {
+        console.error("[hasNoindexTag] Error while checking for noindex meta tag:", error);
+        return false;
+    }
 };
 
 /**
- * Check if a noindex header is present.
+ * Check if a noindex header is present in the HTTP headers.
+ * This function checks the `X-Robots-Tag` header for the `noindex` directive.
+ *
+ * @param headers - The HTTP headers of the response as a record.
+ * @returns `true` if the `X-Robots-Tag` header contains `noindex`, `false` otherwise.
  */
 export const hasNoindexHeader = (headers: Record<string, string | undefined>): boolean => {
-    const xRobotsTag = headers["x-robots-tag"];
-    return xRobotsTag ? /noindex/i.test(xRobotsTag) : false;
+    if (!headers || typeof headers !== "object") {
+        console.warn("[hasNoindexHeader] Invalid or empty headers provided.");
+        return false;
+    }
+
+    try {
+        const xRobotsTag = headers["x-robots-tag"];
+        return xRobotsTag ? /(^|\s)noindex(\s|$)/i.test(xRobotsTag) : false;
+    } catch (error) {
+        console.error("[hasNoindexHeader] Error while checking for noindex header:", error);
+        return false;
+    }
 };
 
 /**
