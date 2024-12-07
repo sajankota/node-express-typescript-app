@@ -147,12 +147,28 @@ export const extractKeywords = (htmlContent: string): string[] => {
  */
 export const isSeoFriendlyUrl = (url: string): boolean => {
     try {
-        const path = new URL(url).pathname;
-        return /^[a-z0-9-\/]+$/.test(path);
-    } catch {
+        // Parse URL and extract pathname
+        const { pathname } = new URL(url);
+
+        // SEO-friendly URL regex:
+        // - Allows lowercase letters, numbers, hyphens, and slashes
+        // - Prevents leading/trailing hyphens or slashes (e.g., `/example-/` is invalid)
+        // - Avoids consecutive slashes (e.g., `//`)
+        const seoFriendlyRegex = /^(\/[a-z0-9]+(?:-[a-z0-9]+)*\/?)*$/;
+
+        // Check if pathname matches the regex
+        const isPathValid = seoFriendlyRegex.test(pathname);
+
+        // Ensure pathname length is within a reasonable range
+        const isLengthValid = pathname.length >= 3 && pathname.length <= 2048;
+
+        return isPathValid && isLengthValid;
+    } catch (error) {
+        console.error(`[SEOHelpers] Invalid URL provided: ${url}`, error);
         return false;
     }
 };
+
 
 /**
  * Count in-page links.
