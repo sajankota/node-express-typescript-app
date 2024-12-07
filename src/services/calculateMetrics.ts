@@ -90,6 +90,14 @@ interface MetricResults {
 }
 
 /**
+ * Function to extract the first <title> tag from HTML content.
+ */
+const extractFirstTitleTag = (html: string): string | null => {
+    const match = html.match(/<title>(.*?)<\/title>/i); // Match the first <title>...</title>
+    return match ? match[1].trim() : null; // Return the content inside <title> if it exists
+};
+
+/**
  * Main function to calculate metrics for the given content.
  */
 export const calculateMetrics = async (data: IContent): Promise<MetricResults> => {
@@ -110,7 +118,7 @@ export const calculateMetrics = async (data: IContent): Promise<MetricResults> =
     try {
         // ** SEO Metrics **
         // Title Metrics
-        const title = data.metadata.title || null;
+        const title = extractFirstTitleTag(htmlContent) || null; // Extract the first <title> tag
         const titlePresent = !!title;
         const titleLength = title ? title.length : 0;
         const titleMessage = titlePresent
