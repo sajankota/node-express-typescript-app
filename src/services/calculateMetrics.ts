@@ -29,7 +29,7 @@ interface MetricResults {
         noindexTagPresent: boolean;
         noindexHeaderPresent: boolean;
         keywordsPresent: string;
-
+        has404ErrorPage: boolean;
         headingAnalysis: {
             summary: {
                 totalHeadings: number;
@@ -171,6 +171,9 @@ export const calculateMetrics = async (data: IContent): Promise<MetricResults> =
             detailedHeadings: headingTags,
         };
 
+        // Check if the webpage has a 404 error page
+        const has404ErrorPage = await SEOHelpers.has404ErrorPage(url);
+
         const seoMetrics = {
             title,
             titlePresent,
@@ -192,6 +195,7 @@ export const calculateMetrics = async (data: IContent): Promise<MetricResults> =
             noindexTagPresent: SEOHelpers.hasNoindexTag(htmlContent),
             noindexHeaderPresent: SEOHelpers.hasNoindexHeader(headers),
             keywordsPresent: SEOHelpers.extractKeywords(htmlContent).length > 0 ? "Yes" : "No",
+            has404ErrorPage,
             headingAnalysis,
         };
 

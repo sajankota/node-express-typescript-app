@@ -1,6 +1,8 @@
 // src/services/helpers/SEOHelpers.ts
 
 import { JSDOM } from "jsdom";
+import fetch from "cross-fetch";
+
 
 type DetailedHeading = { level: string; content: string; order: number };
 
@@ -166,6 +168,34 @@ export const isSeoFriendlyUrl = (url: string): boolean => {
     } catch (error) {
         console.error(`[SEOHelpers] Invalid URL provided: ${url}`, error);
         return false;
+    }
+};
+
+/**
+ * Check if the given URL has a 404 error page.
+ * This function handles cases where the server might redirect or fail to return a proper 404 status.
+ */
+export const has404ErrorPage = async (url: string): Promise<boolean> => {
+    try {
+        // Perform a GET request to ensure the server doesn't mask 404 with redirects or custom handling
+        const response = await fetch(url, { method: "GET", redirect: "manual" });
+
+        // Check the status code
+        if (response.status === 404) {
+            return true; // Explicitly returned 404
+        }
+
+        // If status code is 3xx (redirect) or 200, check the response body for indications of a 404 page
+        if (response.status >= 200 && response.status < 400) {
+            const text = await response.text();
+            return /404/i.test(text) || /page not found/i.test(text);
+        }
+
+        // For other status codes (e.g., 500), assume not a valid 404
+        return false;
+    } catch (error) {
+        console.error(`[SEOHelpers] Error checking 404 page for URL: ${url}`, error);
+        return false; // Assume no 404 if fetch fails
     }
 };
 

@@ -26,6 +26,7 @@ interface SEO {
     canonicalTagUrl: string | null;
     noindexTagPresent: boolean;
     noindexHeaderPresent: boolean;
+    has404ErrorPage: boolean; // Added field
 
     // Optimized Heading Analysis
     headingAnalysis: {
@@ -131,6 +132,7 @@ const MetricsSchema = new Schema<IMetrics>({
                 canonicalTagUrl: { type: String, default: null },
                 noindexTagPresent: { type: Boolean, required: true },
                 noindexHeaderPresent: { type: Boolean, required: true },
+                has404ErrorPage: { type: Boolean, required: true }, // Added field
 
                 // Optimized Heading Analysis
                 headingAnalysis: {
