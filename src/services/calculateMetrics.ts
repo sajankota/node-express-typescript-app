@@ -95,12 +95,13 @@ interface MetricResults {
 export const calculateMetrics = async (data: IContent): Promise<MetricResults> => {
     const url = data.url;
     const htmlContent = data.htmlContent || "";
+    const textContent = data.textContent || ""; // For calculating text-to-HTML ratio
     const headers = data.headers || {};
 
-    console.debug("[calculateMetrics] HTML Content Snippet:", htmlContent.slice(0, 500));
+    console.debug("[calculateMetrics] Starting metrics calculation...");
 
-    // Validate HTML content
-    if (!htmlContent || htmlContent.trim() === "") {
+    // Validate inputs
+    if (!htmlContent.trim()) {
         throw new Error("HTML content is missing or empty.");
     }
 
@@ -109,13 +110,10 @@ export const calculateMetrics = async (data: IContent): Promise<MetricResults> =
     }
 
     try {
-        // ** SEO Metrics **
-        // Title Metrics
+        /** SEO Metrics */
         const title = SEOHelpers.extractFirstTitleTag(htmlContent);
-        console.debug("[calculateMetrics] Extracted Title:", title);
-
         const titlePresent = !!title;
-        const titleLength = title ? title.length : 0;
+        const titleLength = title?.length || 0;
         const titleMessage = titlePresent
             ? titleLength < 50
                 ? TITLE_MESSAGES.TITLE_LENGTH_SHORT
@@ -124,12 +122,9 @@ export const calculateMetrics = async (data: IContent): Promise<MetricResults> =
                     : TITLE_MESSAGES.TITLE_LENGTH_OPTIMAL
             : TITLE_MESSAGES.TITLE_MISSING;
 
-        // Meta Description Extraction
         const metaDescription = SEOHelpers.extractMetaDescription(htmlContent);
-        console.debug("[calculateMetrics] Extracted Meta Description:", metaDescription);
-
         const metaDescriptionPresent = !!metaDescription;
-        const metaDescriptionLength = metaDescription ? metaDescription.length : 0;
+        const metaDescriptionLength = metaDescription?.length || 0;
         const metaDescriptionMessage = metaDescriptionPresent
             ? metaDescriptionLength < 150
                 ? META_DESCRIPTION_MESSAGES.META_DESCRIPTION_LENGTH_SHORT
@@ -138,13 +133,9 @@ export const calculateMetrics = async (data: IContent): Promise<MetricResults> =
                     : META_DESCRIPTION_MESSAGES.META_DESCRIPTION_LENGTH_OPTIMAL
             : META_DESCRIPTION_MESSAGES.META_DESCRIPTION_MISSING;
 
-        // Extract Headings
         const headingTags = SEOHelpers.extractAllHeadingsWithDetails(htmlContent);
-        console.debug("[calculateMetrics] Extracted Headings:", headingTags);
-
         const headingTagCounts = SEOHelpers.countHeadingTagLevels(headingTags);
         const totalHeadings = headingTags.length;
-
         const headingIssues = SEOHelpers.analyzeHeadingIssues(headingTags, title);
 
         const headingAnalysis = {
@@ -154,14 +145,11 @@ export const calculateMetrics = async (data: IContent): Promise<MetricResults> =
             },
             issues: {
                 ...headingIssues,
-                excessiveHeadings: totalHeadings > 50, // Example threshold
+                excessiveHeadings: totalHeadings > 50,
                 insufficientHeadings: totalHeadings < 3,
             },
             detailedHeadings: headingTags,
         };
-
-        // Check if the webpage has a 404 error page
-        const has404ErrorPage = await SEOHelpers.has404ErrorPage(url);
 
         const seoMetrics = {
             title,
@@ -184,13 +172,13 @@ export const calculateMetrics = async (data: IContent): Promise<MetricResults> =
             noindexTagPresent: SEOHelpers.hasNoindexTag(htmlContent),
             noindexHeaderPresent: SEOHelpers.hasNoindexHeader(headers),
             keywordsPresent: SEOHelpers.extractKeywords(htmlContent).length > 0 ? "Yes" : "No",
-            has404ErrorPage,
+            has404ErrorPage: await SEOHelpers.has404ErrorPage(url),
             headingAnalysis,
         };
 
-        console.debug("[calculateMetrics] Final SEO Metrics:", seoMetrics);
+        console.debug("[calculateMetrics] SEO Metrics calculated:", seoMetrics);
 
-        // Security Metrics
+        /** Security Metrics */
         const securityMetrics = {
             httpsEnabled: SecurityHelpers.isHttpsEnabled(url),
             mixedContent: SecurityHelpers.hasMixedContent(htmlContent),
@@ -198,21 +186,28 @@ export const calculateMetrics = async (data: IContent): Promise<MetricResults> =
             hstsEnabled: SecurityHelpers.isHstsEnabled(headers),
         };
 
-        // Performance Metrics
+        console.debug("[calculateMetrics] Security Metrics calculated:", securityMetrics);
+
+        /** Performance Metrics */
         const performanceMetrics = {
             pageSizeKb: PerformanceHelpers.calculatePageSize(htmlContent),
             httpRequests: PerformanceHelpers.countHttpRequests(htmlContent),
             textCompressionEnabled: PerformanceHelpers.isTextCompressionEnabled(headers),
         };
 
-        // Miscellaneous Metrics
+        console.debug("[calculateMetrics] Performance Metrics calculated:", performanceMetrics);
+
+        /** Miscellaneous Metrics */
         const miscellaneousMetrics = {
             metaViewportPresent: MiscellaneousHelpers.isMetaViewportPresent(htmlContent),
             characterSet: MiscellaneousHelpers.extractCharacterSet(htmlContent),
             sitemapAccessible: await MiscellaneousHelpers.isSitemapAccessible(url),
-            textToHtmlRatio: MiscellaneousHelpers.calculateTextToHtmlRatio(htmlContent, data.textContent),
+            textToHtmlRatio: MiscellaneousHelpers.calculateTextToHtmlRatio(htmlContent, textContent),
         };
 
+        console.debug("[calculateMetrics] Miscellaneous Metrics calculated:", miscellaneousMetrics);
+
+        // Combine all metrics into the result object
         return {
             seo: seoMetrics,
             security: securityMetrics,
@@ -220,7 +215,7 @@ export const calculateMetrics = async (data: IContent): Promise<MetricResults> =
             miscellaneous: miscellaneousMetrics,
         };
     } catch (error) {
-        console.error("[calculateMetrics] Error calculating metrics:", error);
+        console.error("[calculateMetrics] Error occurred:", error);
         throw new Error("Failed to calculate metrics.");
     }
 };

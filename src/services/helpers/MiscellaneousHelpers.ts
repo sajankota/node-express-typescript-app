@@ -1,42 +1,85 @@
 // src/services/helpers/MiscellaneousHelpers.ts
 
+import fetch from "cross-fetch";
+
 /**
  * Check if a <meta name="viewport"> tag is present in the HTML content.
- * - Uses a regex to handle variations in spacing and case sensitivity.
+ * - Handles edge cases like attribute order, self-closing tags, and extra whitespace.
  * - Returns false if HTML content is empty or invalid.
+ * @param htmlContent - The HTML content of the webpage as a string.
+ * @returns `true` if a <meta name="viewport"> tag is present, `false` otherwise.
  */
 export const isMetaViewportPresent = (htmlContent: string): boolean => {
-    if (!htmlContent) {
-        console.warn("[MiscellaneousHelpers] HTML content is empty or undefined.");
+    if (!htmlContent || typeof htmlContent !== "string") {
+        console.warn("[isMetaViewportPresent] Invalid or empty HTML content provided.");
         return false;
     }
 
-    const viewportRegex = /<meta\s+name=["']viewport["'][^>]*>/i;
-    return viewportRegex.test(htmlContent);
+    // Trim unnecessary whitespaces and check for quick elimination
+    const cleanedHtml = htmlContent.trim();
+    if (!cleanedHtml.includes("viewport")) return false; // Quick check before regex
+
+    // Robust regex to match <meta> tags with name="viewport" (order-insensitive)
+    const viewportRegex = /<meta\b[^>]*\bname=["']viewport["'][^>]*>/i;
+
+    // Test the regex against the cleaned HTML
+    const isViewportPresent = viewportRegex.test(cleanedHtml);
+
+    if (!isViewportPresent) {
+        console.warn("[isMetaViewportPresent] No <meta name='viewport'> tag found.");
+    }
+
+    return isViewportPresent;
 };
 
+
 /**
- * Extract the character set declared in the HTML <meta charset> tag.
- * - Supports both `<meta charset="UTF-8">` and `<meta http-equiv="Content-Type">` formats.
- * - Returns null if no charset is found or the HTML content is invalid.
+ * Extract the character set declared in the HTML <meta charset> or <meta http-equiv="Content-Type"> tag.
+ * - Supports `<meta charset="UTF-8">` and `<meta http-equiv="Content-Type" content="...charset=UTF-8">` formats.
+ * - Handles variations in spacing, attribute order, and case sensitivity.
+ * - Returns null if no charset is found or if the HTML content is invalid.
+ * @param htmlContent - The HTML content as a string.
+ * @returns The extracted character set (e.g., "UTF-8") or null if not found.
  */
 export const extractCharacterSet = (htmlContent: string): string | null => {
-    if (!htmlContent) {
-        console.warn("[MiscellaneousHelpers] HTML content is empty or undefined.");
+    if (!htmlContent || typeof htmlContent !== "string") {
+        console.warn("[extractCharacterSet] Invalid or empty HTML content provided.");
         return null;
     }
 
-    const charsetRegex = /<meta[^>]+charset=["']?([^"'>\s]+)/i;
-    const match = htmlContent.match(charsetRegex);
+    // Clean and trim unnecessary whitespaces
+    const cleanedHtml = htmlContent.trim();
 
-    if (match && match[1]) {
-        console.info(`[MiscellaneousHelpers] Character set extracted: ${match[1]}`);
-        return match[1];
+    // Early exit if neither "charset" nor "Content-Type" is in the content
+    if (!cleanedHtml.includes("charset") && !cleanedHtml.includes("Content-Type")) {
+        console.warn("[extractCharacterSet] No charset-related meta tags found.");
+        return null;
     }
 
-    console.warn("[MiscellaneousHelpers] No character set found in the HTML content.");
+    // Regex to match <meta charset="..."> (direct charset declaration)
+    const charsetRegex = /<meta[^>]*\bcharset=["']?([^"'>\s]+)/i;
+
+    // Regex to match <meta http-equiv="Content-Type" content="text/html; charset=..."> (Content-Type declaration)
+    const httpEquivCharsetRegex = /<meta[^>]*\bhttp-equiv=["']?Content-Type["'][^>]*\bcontent=["'][^"'>]*charset=([^"'>\s]+)/i;
+
+    // Attempt to match <meta charset="...">
+    const directMatch = cleanedHtml.match(charsetRegex);
+    if (directMatch && directMatch[1]) {
+        console.info(`[extractCharacterSet] Character set found: ${directMatch[1]}`);
+        return directMatch[1];
+    }
+
+    // Attempt to match <meta http-equiv="Content-Type" content="...charset=...">
+    const httpEquivMatch = cleanedHtml.match(httpEquivCharsetRegex);
+    if (httpEquivMatch && httpEquivMatch[1]) {
+        console.info(`[extractCharacterSet] Character set found via http-equiv: ${httpEquivMatch[1]}`);
+        return httpEquivMatch[1];
+    }
+
+    console.warn("[extractCharacterSet] No valid character set found in the meta tags.");
     return null;
 };
+
 
 /**
  * Check if the sitemap is accessible by constructing its URL and sending a HEAD request.
@@ -45,53 +88,83 @@ export const extractCharacterSet = (htmlContent: string): string | null => {
  */
 export const isSitemapAccessible = async (url: string): Promise<boolean> => {
     try {
-        const parsedUrl = new URL(url); // Validate the base URL
-        const baseOrigin = parsedUrl.origin;
+        const baseOrigin = new URL(url).origin;
 
-        // Check standard sitemap locations
+        // Standard sitemap locations
         const sitemapUrls = [
-            new URL("/sitemap.xml", baseOrigin).href,
-            new URL("/sitemap-index.xml", baseOrigin).href,
+            `${baseOrigin}/sitemap.xml`,
+            `${baseOrigin}/sitemap-index.xml`,
         ];
 
+        // Check each standard location
         for (const sitemapUrl of sitemapUrls) {
-            if (await isUrlAccessible(sitemapUrl)) {
-                console.info(`[MiscellaneousHelpers] Sitemap is accessible at: ${sitemapUrl}`);
-                return true;
-            }
+            if (await isUrlAccessible(sitemapUrl)) return true;
         }
 
-        // Fallback: Check robots.txt for Sitemap directives
-        const robotsTxtUrl = new URL("/robots.txt", baseOrigin).href;
-        const sitemapUrlsFromRobots = await parseSitemapsFromRobots(robotsTxtUrl);
+        // Fallback: Check robots.txt for sitemap directives
+        const robotsTxtUrl = `${baseOrigin}/robots.txt`;
+        const sitemapsFromRobots = await parseSitemapsFromRobots(robotsTxtUrl);
 
-        for (const sitemapUrl of sitemapUrlsFromRobots) {
-            if (await isUrlAccessible(sitemapUrl)) {
-                console.info(`[MiscellaneousHelpers] Sitemap found in robots.txt and accessible: ${sitemapUrl}`);
-                return true;
-            }
+        // Check sitemap URLs from robots.txt
+        for (const sitemapUrl of sitemapsFromRobots) {
+            if (await isUrlAccessible(sitemapUrl)) return true;
         }
 
-        console.warn("[MiscellaneousHelpers] No accessible sitemap found.");
         return false;
-    } catch (error) {
-        console.error(`[MiscellaneousHelpers] Error checking sitemap accessibility for URL: ${url}`, error);
+    } catch {
         return false;
     }
 };
+
 
 /**
- * Helper function to check if a URL is accessible by sending a HEAD request.
+ * Helper function to check if a URL is accessible via a HEAD request.
+ * - Validates the URL format before making a request.
+ * - Handles errors gracefully and logs failures for debugging.
+ * - Includes a timeout mechanism to avoid hanging on unresponsive servers.
+ * @param url - The URL to check for accessibility.
+ * @param timeoutMs - Timeout in milliseconds (default: 5000ms).
+ * @returns A promise that resolves to true if the URL is accessible, false otherwise.
  */
-const isUrlAccessible = async (url: string): Promise<boolean> => {
+const isUrlAccessible = async (url: string, timeoutMs = 5000): Promise<boolean> => {
+    // Validate the URL format
     try {
-        const response = await fetch(url, { method: "HEAD" });
-        return response.ok;
+        new URL(url); // Throws an error if the URL is invalid
     } catch (error) {
-        console.error(`[MiscellaneousHelpers] Error accessing URL: ${url}`, error);
+        console.error(`[isUrlAccessible] Invalid URL: ${url}`);
+        return false;
+    }
+
+    // Create an AbortController for the timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+        // Attempt a HEAD request to check URL accessibility
+        const response = await fetch(url, { method: "HEAD", signal: controller.signal });
+
+        // Clear the timeout if the request succeeds
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+            return true; // URL is accessible
+        }
+
+        // Optionally log non-2xx/3xx responses
+        console.warn(`[isUrlAccessible] URL responded with status: ${response.status}`);
+        return false;
+    } catch (error) {
+        // Narrow the type of `error` to check its properties
+        if (error instanceof DOMException && error.name === "AbortError") {
+            console.error(`[isUrlAccessible] Request timed out after ${timeoutMs}ms: ${url}`);
+        } else {
+            console.error(`[isUrlAccessible] Error checking URL: ${url}`, error);
+        }
+
         return false;
     }
 };
+
 
 /**
  * Parse the robots.txt file to extract sitemap URLs.
@@ -101,51 +174,52 @@ const parseSitemapsFromRobots = async (robotsTxtUrl: string): Promise<string[]> 
     try {
         const response = await fetch(robotsTxtUrl);
 
-        if (!response.ok) {
-            console.warn(`[MiscellaneousHelpers] Robots.txt not accessible: ${robotsTxtUrl}. Status: ${response.status}`);
-            return [];
-        }
+        if (!response.ok) return [];
 
         const robotsTxtContent = await response.text();
-        const sitemapUrls: string[] = [];
-
-        // Regex to extract Sitemap directives
         const sitemapRegex = /^sitemap:\s*(.+)$/gim;
-        let match;
 
-        while ((match = sitemapRegex.exec(robotsTxtContent)) !== null) {
-            sitemapUrls.push(match[1].trim());
-        }
-
-        if (sitemapUrls.length > 0) {
-            console.info(`[MiscellaneousHelpers] Sitemaps found in robots.txt: ${sitemapUrls}`);
-        } else {
-            console.warn("[MiscellaneousHelpers] No Sitemap directives found in robots.txt.");
-        }
-
-        return sitemapUrls;
-    } catch (error) {
-        console.error(`[MiscellaneousHelpers] Error parsing robots.txt: ${robotsTxtUrl}`, error);
+        return Array.from(robotsTxtContent.matchAll(sitemapRegex), match => match[1].trim());
+    } catch {
         return [];
     }
 };
 
 /**
  * Calculate the text-to-HTML ratio.
- * - Ensures no division by zero by handling empty or invalid HTML content.
- * - Returns a ratio between 0 and 1.
+ * - Ensures valid input for both HTML and text content.
+ * - Handles edge cases like empty or malformed HTML content.
+ * - Returns a ratio between 0 and 1, rounded to two decimal places.
+ * @param htmlContent - The raw HTML content as a string.
+ * @param textContent - The extracted text content from the HTML.
+ * @returns A ratio between 0 and 1 (text length divided by HTML length), or 0 for invalid inputs.
  */
 export const calculateTextToHtmlRatio = (htmlContent: string, textContent: string | null): number => {
-    if (!htmlContent) {
-        console.warn("[MiscellaneousHelpers] HTML content is empty or undefined.");
+    // Validate input
+    if (!htmlContent || typeof htmlContent !== "string") {
+        console.warn("[calculateTextToHtmlRatio] Invalid or empty HTML content.");
         return 0;
     }
 
-    const htmlLength = htmlContent.length;
-    const textLength = textContent?.length || 0;
+    if (typeof textContent !== "string" && textContent !== null) {
+        console.warn("[calculateTextToHtmlRatio] Invalid text content provided.");
+        return 0;
+    }
 
+    // Calculate lengths
+    const htmlLength = htmlContent.trim().length; // Trim to exclude excessive whitespace
+    const textLength = textContent?.trim().length || 0;
+
+    // Handle edge cases
+    if (htmlLength === 0) {
+        console.warn("[calculateTextToHtmlRatio] HTML content is empty after trimming.");
+        return 0;
+    }
+
+    // Calculate the ratio
     const ratio = textLength / htmlLength;
 
-    console.info(`[MiscellaneousHelpers] Text-to-HTML ratio calculated: ${ratio.toFixed(2)}`);
-    return parseFloat(ratio.toFixed(2)); // Round to 2 decimal places for precision
+    // Ensure the ratio is between 0 and 1, and round to 2 decimal places
+    return Math.min(1, Math.max(0, parseFloat(ratio.toFixed(2))));
 };
+
