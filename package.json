@@ -44,6 +44,7 @@
     "puppeteer": "^23.9.0",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "react-ga4": "^2.1.0",
     "reading-time": "^1.5.0",
     "sentiment": "^5.0.2"
   },

@@ -5,6 +5,7 @@ dotenv.config();
 
 import express from "express";
 import cors from "cors";
+import { trackApiCall } from './middleware/analyticsMiddleware';
 import connectDB from "./config/db";
 import authRoutes from "./routes/authRoutes";
 import reportRoutes from "./routes/reportRoutes";
@@ -21,6 +22,10 @@ import metricsRoutes from "./routes/metricsRoutes";
 
 
 const app = express();
+
+// Apply tracking middleware globally for all API calls
+app.use(trackApiCall('General API Call', 'All Routes'));
+
 const PORT = process.env.PORT || 4000;
 const router = express.Router();
 
@@ -52,26 +57,20 @@ app.use(express.json());
 
 connectDB();
 
-// Define routes
-app.use("/api/auth", authRoutes); // Authentication routes
-app.use("/api/report", reportRoutes); // Report-related routes
-app.use("/api/meta-tags", metaRoutes); // Meta-tags routes
-app.use("/api/headings", headingRoutes); // Headings routes
-app.use("/api/content", contentRoutes); // Content routes
-app.use("/api/links", linkRoutes); // Links routes
-
 // Register routes
+app.use("/api/auth", authRoutes);
+app.use("/api/report", reportRoutes);
+app.use("/api/meta-tags", metaRoutes);
+app.use("/api/headings", headingRoutes);
+app.use("/api/content", contentRoutes);
+app.use("/api/links", linkRoutes);
 app.use("/api/metrics", metricsRoutes);
-
 // seo-metrics route at /api/seo-metrics
-app.use("/api/seo-metrics", seoMetricsRoutes); // SEO Metrics routes
-
+app.use("/api/seo-metrics", seoMetricsRoutes);
 // performance-metrics route at /api/performance-metrics
 app.use("/api/performance-metrics", performanceMetricsRoutes);
-
 // accessibility-metrics route at /api/accessibility-metrics
 app.use("/api/accessibility-metrics", accessibilityRoutes);
-
 // Add CrUX API routes
 app.use("/api/crux", cruxRoutes);
 
