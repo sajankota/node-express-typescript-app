@@ -5,19 +5,18 @@ import * as SEOHelpers from "./helpers/SEOHelpers";
 import * as SecurityHelpers from "./helpers/SecurityHelpers";
 import * as PerformanceHelpers from "./helpers/PerformanceHelpers";
 import * as MiscellaneousHelpers from "./helpers/MiscellaneousHelpers";
-import { TITLE_MESSAGES } from "../constants/seoMetricsMessages"; // Import constants
+import { TITLE_MESSAGES, META_DESCRIPTION_MESSAGES } from "../constants/seoMetricsMessages";
 
 interface MetricResults {
     seo: {
-        actualTitle: string | null;
+        title: string | null;
         titlePresent: boolean;
         titleLength: number;
-        titleMessage: string; // Add titleMessage to the metrics
-        actualMetaDescription: string | null;
+        titleMessage: string;
+        metaDescription: string | null;
         metaDescriptionPresent: boolean;
         metaDescriptionLength: number;
-        headingsCount: number;
-        contentKeywords: string[];
+        metaDescriptionMessage: string;
         seoFriendlyUrl: boolean;
         faviconPresent: boolean;
         faviconUrl: string | null;
@@ -25,15 +24,46 @@ interface MetricResults {
         inPageLinks: number;
         languageDeclared: string | null;
         hreflangTagPresent: string[];
-        h1TagCount: number;
-        h1TagContent: string[];
-        h2ToH6TagCount: number;
-        h2ToH6TagContent: { tag: string; content: string }[];
         canonicalTagPresent: boolean;
         canonicalTagUrl: string | null;
         noindexTagPresent: boolean;
         noindexHeaderPresent: boolean;
         keywordsPresent: string;
+        has404ErrorPage: boolean;
+        headingAnalysis: {
+            summary: {
+                totalHeadings: number;
+                headingTagCounts: {
+                    h1: number;
+                    h2: number;
+                    h3: number;
+                    h4: number;
+                    h5: number;
+                    h6: number;
+                };
+            };
+            issues: {
+                multipleH1Tags: boolean;
+                missingH1Tag: boolean;
+                h1MatchesTitle: boolean;
+                sequence: {
+                    hasIssues: boolean;
+                    skippedLevels: string[];
+                };
+                invalidTextLength: {
+                    tooShort: string[];
+                    tooLong: string[];
+                };
+                duplicateHeadings: string[];
+                excessiveHeadings: boolean;
+                insufficientHeadings: boolean;
+            };
+            detailedHeadings: {
+                level: string;
+                content: string;
+                order: number;
+            }[];
+        };
     };
     security: {
         httpsEnabled: boolean;
@@ -60,16 +90,25 @@ interface MetricResults {
 }
 
 /**
+ * Function to extract the first <title> tag from HTML content.
+ */
+const extractFirstTitleTag = (html: string): string | null => {
+    const match = html.match(/<title>(.*?)<\/title>/i); // Match the first <title>...</title>
+    return match ? match[1].trim() : null; // Return the content inside <title> if it exists
+};
+
+/**
  * Main function to calculate metrics for the given content.
  */
 export const calculateMetrics = async (data: IContent): Promise<MetricResults> => {
     const url = data.url;
-    const htmlContent = data.htmlContent || ""; // Default to empty string if missing
-    const headers = data.headers || {}; // Default to an empty object if headers are missing
+    const htmlContent = data.htmlContent || "";
+    const headers = data.headers || {};
 
-    // Log warnings for missing critical data
-    if (!htmlContent) {
+    // Validate HTML content
+    if (!htmlContent || htmlContent.trim() === "") {
         console.warn("[calculateMetrics] HTML content is missing or empty.");
+        throw new Error("HTML content is missing or empty.");
     }
 
     if (!url) {
@@ -78,35 +117,80 @@ export const calculateMetrics = async (data: IContent): Promise<MetricResults> =
 
     try {
         // ** SEO Metrics **
-        const title = data.metadata.title || null; // Fetch the title
-        const titlePresent = SEOHelpers.isTitlePresent(title); // Check if title exists
-        const titleLength = SEOHelpers.calculateLength(title); // Calculate title length
+        // Title Metrics
+        const title = extractFirstTitleTag(htmlContent) || null; // Extract the first <title> tag
+        const titlePresent = !!title;
+        const titleLength = title ? title.length : 0;
+        const titleMessage = titlePresent
+            ? titleLength < 50
+                ? TITLE_MESSAGES.TITLE_LENGTH_SHORT
+                : titleLength > 60
+                    ? TITLE_MESSAGES.TITLE_LENGTH_LONG
+                    : TITLE_MESSAGES.TITLE_LENGTH_OPTIMAL
+            : TITLE_MESSAGES.TITLE_MISSING;
 
-        let titleMessage = "";
-        if (titlePresent) {
-            if (titleLength < 50) {
-                titleMessage = TITLE_MESSAGES.TITLE_LENGTH_SHORT;
-            } else if (titleLength > 60) {
-                titleMessage = TITLE_MESSAGES.TITLE_LENGTH_LONG;
-            } else {
-                titleMessage = TITLE_MESSAGES.TITLE_LENGTH_OPTIMAL;
-            }
-        } else {
-            titleMessage = TITLE_MESSAGES.TITLE_MISSING;
-        }
+        // Meta Description Metrics
+        const metaDescription = data.metadata.description || null;
+        const metaDescriptionPresent = !!metaDescription;
+        const metaDescriptionLength = metaDescription ? metaDescription.length : 0;
+        const metaDescriptionMessage = metaDescriptionPresent
+            ? metaDescriptionLength < 150
+                ? META_DESCRIPTION_MESSAGES.META_DESCRIPTION_LENGTH_SHORT
+                : metaDescriptionLength > 160
+                    ? META_DESCRIPTION_MESSAGES.META_DESCRIPTION_LENGTH_LONG
+                    : META_DESCRIPTION_MESSAGES.META_DESCRIPTION_LENGTH_OPTIMAL
+            : META_DESCRIPTION_MESSAGES.META_DESCRIPTION_MISSING;
+
+        // ** Heading Tag Analysis **
+        const headingTags = SEOHelpers.extractAllHeadingsWithDetails(htmlContent);
+        const headingTagCounts = SEOHelpers.countHeadingTagLevels(headingTags);
+        const totalHeadings = headingTags.length;
+
+        // ** Heading Issues **
+        const multipleH1Tags = headingTagCounts.h1 > 1;
+        const h1MatchesTitle = headingTags.some(
+            (heading) => heading.level === "h1" && heading.content.trim() === (title?.trim() || "")
+        );
+        const missingH1Tag = headingTagCounts.h1 === 0;
+        const sequenceIssues = SEOHelpers.detectHeadingSequenceIssues(headingTags);
+        const excessiveHeadings = totalHeadings > 50; // Arbitrary threshold
+        const insufficientHeadings = totalHeadings < 3;
+        const invalidTextLength = SEOHelpers.getInvalidHeadingTextLengths(headingTags);
+        const duplicateHeadings = SEOHelpers.getDuplicateHeadings(headingTags);
+
+        const headingAnalysis = {
+            summary: {
+                totalHeadings,
+                headingTagCounts: headingTagCounts,
+            },
+            issues: {
+                multipleH1Tags,
+                missingH1Tag,
+                h1MatchesTitle,
+                sequence: {
+                    hasIssues: sequenceIssues,
+                    skippedLevels: SEOHelpers.getSkippedHeadingLevels(headingTags),
+                },
+                invalidTextLength,
+                duplicateHeadings,
+                excessiveHeadings,
+                insufficientHeadings,
+            },
+            detailedHeadings: headingTags,
+        };
+
+        // Check if the webpage has a 404 error page
+        const has404ErrorPage = await SEOHelpers.has404ErrorPage(url);
 
         const seoMetrics = {
-            title: title || "", // Map to required schema field
-            actualTitle: title, // Preserve original field for reference
+            title,
             titlePresent,
             titleLength,
             titleMessage,
-            metaDescription: data.metadata.description || "", // Map to required schema field
-            actualMetaDescription: data.metadata.description || null, // Preserve original field
-            metaDescriptionPresent: SEOHelpers.isMetaDescriptionPresent(data.metadata.description),
-            metaDescriptionLength: SEOHelpers.calculateLength(data.metadata.description),
-            headingsCount: SEOHelpers.extractAllHeadings(htmlContent).length,
-            contentKeywords: SEOHelpers.extractKeywords(htmlContent),
+            metaDescription,
+            metaDescriptionPresent,
+            metaDescriptionLength,
+            metaDescriptionMessage,
             seoFriendlyUrl: SEOHelpers.isSeoFriendlyUrl(url),
             faviconPresent: !!data.favicon,
             faviconUrl: data.favicon || null,
@@ -114,32 +198,13 @@ export const calculateMetrics = async (data: IContent): Promise<MetricResults> =
             inPageLinks: SEOHelpers.countInPageLinks(htmlContent),
             languageDeclared: SEOHelpers.extractLangTag(htmlContent),
             hreflangTagPresent: SEOHelpers.extractHreflangTags(htmlContent),
-            h1TagCount: SEOHelpers.countTagsByLevel(
-                SEOHelpers.extractAllHeadings(htmlContent),
-                "h1"
-            ),
-            h1TagContent: SEOHelpers.extractContentByLevel(
-                SEOHelpers.extractAllHeadings(htmlContent),
-                "h1"
-            ),
-            h2ToH6TagCount: SEOHelpers.countTagsByLevel(
-                SEOHelpers.extractAllHeadings(htmlContent),
-                "h2",
-                "h3",
-                "h4",
-                "h5",
-                "h6"
-            ),
-            h2ToH6TagContent: SEOHelpers.extractContentByRange(
-                SEOHelpers.extractAllHeadings(htmlContent),
-                "h2",
-                "h6"
-            ),
             canonicalTagPresent: SEOHelpers.hasCanonicalTag(htmlContent).present,
             canonicalTagUrl: SEOHelpers.hasCanonicalTag(htmlContent).url,
             noindexTagPresent: SEOHelpers.hasNoindexTag(htmlContent),
             noindexHeaderPresent: SEOHelpers.hasNoindexHeader(headers),
             keywordsPresent: SEOHelpers.extractKeywords(htmlContent).length > 0 ? "Yes" : "No",
+            has404ErrorPage,
+            headingAnalysis,
         };
 
         // ** Security Metrics **
@@ -165,7 +230,6 @@ export const calculateMetrics = async (data: IContent): Promise<MetricResults> =
             textToHtmlRatio: MiscellaneousHelpers.calculateTextToHtmlRatio(htmlContent, data.textContent),
         };
 
-        // Return all metrics as a single object
         return {
             seo: seoMetrics,
             security: securityMetrics,
@@ -177,4 +241,3 @@ export const calculateMetrics = async (data: IContent): Promise<MetricResults> =
         throw new Error("Failed to calculate metrics.");
     }
 };
-
