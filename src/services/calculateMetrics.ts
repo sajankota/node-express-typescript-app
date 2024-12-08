@@ -90,14 +90,6 @@ interface MetricResults {
 }
 
 /**
- * Function to extract the first <title> tag from HTML content.
- */
-const extractFirstTitleTag = (html: string): string | null => {
-    const match = html.match(/<title>(.*?)<\/title>/i); // Match the first <title>...</title>
-    return match ? match[1].trim() : null; // Return the content inside <title> if it exists
-};
-
-/**
  * Main function to calculate metrics for the given content.
  */
 export const calculateMetrics = async (data: IContent): Promise<MetricResults> => {
@@ -105,9 +97,10 @@ export const calculateMetrics = async (data: IContent): Promise<MetricResults> =
     const htmlContent = data.htmlContent || "";
     const headers = data.headers || {};
 
+    console.debug("[calculateMetrics] HTML Content Snippet:", htmlContent.slice(0, 500));
+
     // Validate HTML content
     if (!htmlContent || htmlContent.trim() === "") {
-        console.warn("[calculateMetrics] HTML content is missing or empty.");
         throw new Error("HTML content is missing or empty.");
     }
 
@@ -118,7 +111,9 @@ export const calculateMetrics = async (data: IContent): Promise<MetricResults> =
     try {
         // ** SEO Metrics **
         // Title Metrics
-        const title = extractFirstTitleTag(htmlContent) || null; // Extract the first <title> tag
+        const title = SEOHelpers.extractFirstTitleTag(htmlContent);
+        console.debug("[calculateMetrics] Extracted Title:", title);
+
         const titlePresent = !!title;
         const titleLength = title ? title.length : 0;
         const titleMessage = titlePresent
@@ -129,8 +124,10 @@ export const calculateMetrics = async (data: IContent): Promise<MetricResults> =
                     : TITLE_MESSAGES.TITLE_LENGTH_OPTIMAL
             : TITLE_MESSAGES.TITLE_MISSING;
 
-        // Meta Description Metrics
-        const metaDescription = data.metadata.description || null;
+        // Meta Description Extraction
+        const metaDescription = SEOHelpers.extractMetaDescription(htmlContent);
+        console.debug("[calculateMetrics] Extracted Meta Description:", metaDescription);
+
         const metaDescriptionPresent = !!metaDescription;
         const metaDescriptionLength = metaDescription ? metaDescription.length : 0;
         const metaDescriptionMessage = metaDescriptionPresent
@@ -141,40 +138,24 @@ export const calculateMetrics = async (data: IContent): Promise<MetricResults> =
                     : META_DESCRIPTION_MESSAGES.META_DESCRIPTION_LENGTH_OPTIMAL
             : META_DESCRIPTION_MESSAGES.META_DESCRIPTION_MISSING;
 
-        // ** Heading Tag Analysis **
+        // Extract Headings
         const headingTags = SEOHelpers.extractAllHeadingsWithDetails(htmlContent);
+        console.debug("[calculateMetrics] Extracted Headings:", headingTags);
+
         const headingTagCounts = SEOHelpers.countHeadingTagLevels(headingTags);
         const totalHeadings = headingTags.length;
 
-        // ** Heading Issues **
-        const multipleH1Tags = headingTagCounts.h1 > 1;
-        const h1MatchesTitle = headingTags.some(
-            (heading) => heading.level === "h1" && heading.content.trim() === (title?.trim() || "")
-        );
-        const missingH1Tag = headingTagCounts.h1 === 0;
-        const sequenceIssues = SEOHelpers.detectHeadingSequenceIssues(headingTags);
-        const excessiveHeadings = totalHeadings > 50; // Arbitrary threshold
-        const insufficientHeadings = totalHeadings < 3;
-        const invalidTextLength = SEOHelpers.getInvalidHeadingTextLengths(headingTags);
-        const duplicateHeadings = SEOHelpers.getDuplicateHeadings(headingTags);
+        const headingIssues = SEOHelpers.analyzeHeadingIssues(headingTags, title);
 
         const headingAnalysis = {
             summary: {
                 totalHeadings,
-                headingTagCounts: headingTagCounts,
+                headingTagCounts,
             },
             issues: {
-                multipleH1Tags,
-                missingH1Tag,
-                h1MatchesTitle,
-                sequence: {
-                    hasIssues: sequenceIssues,
-                    skippedLevels: SEOHelpers.getSkippedHeadingLevels(headingTags),
-                },
-                invalidTextLength,
-                duplicateHeadings,
-                excessiveHeadings,
-                insufficientHeadings,
+                ...headingIssues,
+                excessiveHeadings: totalHeadings > 50, // Example threshold
+                insufficientHeadings: totalHeadings < 3,
             },
             detailedHeadings: headingTags,
         };
@@ -207,7 +188,9 @@ export const calculateMetrics = async (data: IContent): Promise<MetricResults> =
             headingAnalysis,
         };
 
-        // ** Security Metrics **
+        console.debug("[calculateMetrics] Final SEO Metrics:", seoMetrics);
+
+        // Security Metrics
         const securityMetrics = {
             httpsEnabled: SecurityHelpers.isHttpsEnabled(url),
             mixedContent: SecurityHelpers.hasMixedContent(htmlContent),
@@ -215,14 +198,14 @@ export const calculateMetrics = async (data: IContent): Promise<MetricResults> =
             hstsEnabled: SecurityHelpers.isHstsEnabled(headers),
         };
 
-        // ** Performance Metrics **
+        // Performance Metrics
         const performanceMetrics = {
             pageSizeKb: PerformanceHelpers.calculatePageSize(htmlContent),
             httpRequests: PerformanceHelpers.countHttpRequests(htmlContent),
             textCompressionEnabled: PerformanceHelpers.isTextCompressionEnabled(headers),
         };
 
-        // ** Miscellaneous Metrics **
+        // Miscellaneous Metrics
         const miscellaneousMetrics = {
             metaViewportPresent: MiscellaneousHelpers.isMetaViewportPresent(htmlContent),
             characterSet: MiscellaneousHelpers.extractCharacterSet(htmlContent),

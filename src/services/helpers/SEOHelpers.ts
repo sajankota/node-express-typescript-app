@@ -7,6 +7,61 @@ import fetch from "cross-fetch";
 type DetailedHeading = { level: string; content: string; order: number };
 
 /**
+ * Extract the first <title> tag from HTML content.
+ * Handles attributes inside the <title> tag.
+ */
+export const extractFirstTitleTag = (htmlContent: string): string | null => {
+    console.debug("[extractFirstTitleTag] HTML Content Snippet:", htmlContent.slice(0, 500)); // Debug snippet
+    // Update regex to handle attributes inside the <title> tag
+    const match = htmlContent.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+    const extractedTitle = match ? match[1].trim() : null;
+    console.debug("[extractFirstTitleTag] Extracted Title:", extractedTitle); // Debug extracted title
+    return extractedTitle;
+};
+
+
+/**
+ * Extract meta description content from HTML content.
+ */
+export const extractMetaDescription = (htmlContent: string): string | null => {
+    console.debug("[extractMetaDescription] HTML Content Snippet:", htmlContent.slice(0, 500));
+
+    // Updated regex to handle multi-line content and robust attribute matching
+    const metaRegex = /<meta[^>]+name=["']description["'][^>]*content=(["'])([\s\S]*?)\1|<meta[^>]+content=(["'])([\s\S]*?)\3[^>]*name=["']description["']/i;
+
+    // Match the meta description tag and capture the full content
+    const match = htmlContent.match(metaRegex);
+
+    // Extract the description from the correct group and normalize spaces
+    const extractedDescription = match
+        ? (match[2] || match[4]).replace(/[\s\n\r]+/g, " ").trim() // Replace excessive spaces and line breaks
+        : null;
+
+    console.debug("[extractMetaDescription] Extracted Meta Description:", extractedDescription);
+
+    return extractedDescription;
+};
+
+
+/**
+ * Analyze heading issues.
+ */
+export const analyzeHeadingIssues = (headings: DetailedHeading[], title: string | null) => ({
+    multipleH1Tags: headings.filter((h) => h.level === "h1").length > 1,
+    missingH1Tag: headings.filter((h) => h.level === "h1").length === 0,
+    h1MatchesTitle: headings.some(
+        (h) => h.level === "h1" && h.content.trim() === (title?.trim() || "")
+    ),
+    sequence: {
+        hasIssues: detectHeadingSequenceIssues(headings),
+        skippedLevels: getSkippedHeadingLevels(headings),
+    },
+    invalidTextLength: getInvalidHeadingTextLengths(headings),
+    duplicateHeadings: getDuplicateHeadings(headings),
+});
+
+
+/**
  * Extract all heading tags (h1 to h6) with their details: level, content, and order of occurrence.
  */
 export const extractAllHeadingsWithDetails = (htmlContent: string): DetailedHeading[] => {
