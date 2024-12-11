@@ -28,43 +28,46 @@ const connectWorkerToDB = async () => {
 
 // Function to generate a screenshot for a given URL
 const generateScreenshot = async (url: string, outputPath: string): Promise<void> => {
-  try {
-    console.log(`[Worker] Generating screenshot for URL: ${url}`);
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage', // Improve performance on systems with limited shared memory
-        '--disable-gpu' // Avoid GPU overhead
-      ],
-    });
-    const page = await browser.newPage();
+  return new Promise(async (resolve, reject) => {
+    try {
+      console.log(`[Worker] Generating screenshot for URL: ${url}`);
+      const browser = await puppeteer.launch({
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage', // Improve performance on systems with limited shared memory
+          '--disable-gpu' // Avoid GPU overhead
+        ],
+      });
+      const page = await browser.newPage();
 
-    // Set the viewport to simulate a desktop screen
-    await page.setViewport({
-      width: 1280, // Standard desktop width
-      height: 768, // Standard desktop height
-      deviceScaleFactor: 2, // Higher scale for better quality
-    });
+      // Set the viewport to simulate a desktop screen
+      await page.setViewport({
+        width: 1280, // Standard desktop width
+        height: 768, // Standard desktop height
+        deviceScaleFactor: 2, // Higher scale for better quality
+      });
 
-    // Ensure CSS, images, and JavaScript are loaded
-    await page.goto(url, { waitUntil: "networkidle0" }); // Wait for all network requests to finish
+      // Ensure CSS, images, and JavaScript are loaded
+      await page.goto(url, { waitUntil: "networkidle0" }); // Wait for all network requests to finish
 
-    // Take a screenshot of the visible viewport only
-    await page.screenshot({
-      path: outputPath,
-      fullPage: false, // Ensure only the visible viewport is captured
-      type: "jpeg",
-      quality: 90, // High quality for better visuals
-    });
+      // Take a screenshot of the visible viewport only
+      await page.screenshot({
+        path: outputPath,
+        fullPage: false, // Ensure only the visible viewport is captured
+        type: "jpeg",
+        quality: 90, // High quality for better visuals
+      });
 
-    console.log(`[Worker] Screenshot saved at: ${outputPath}`);
-    await browser.close();
-  } catch (error) {
-    console.error(`[Worker] Failed to generate screenshot for ${url}:`, error);
-    throw error;
-  }
+      console.log(`[Worker] Screenshot saved at: ${outputPath}`);
+      await browser.close();
+      resolve();
+    } catch (error) {
+      console.error(`[Worker] Failed to generate screenshot for ${url}:`, error);
+      reject(error);
+    }
+  });
 };
 
 // Main worker logic
@@ -106,14 +109,10 @@ const generateScreenshot = async (url: string, outputPath: string): Promise<void
       `${url.replace(/[^a-zA-Z0-9]/g, "_")}.jpeg`
     );
 
-    if (!fs.existsSync(screenshotPath)) {
-      try {
-        await generateScreenshot(url, screenshotPath);
-      } catch (error) {
-        console.error(`[Worker] Failed to generate screenshot for URL: ${url}`, error);
-      }
-    } else {
-      console.log(`[Worker] Screenshot already exists for URL: ${url}`);
+    try {
+      await generateScreenshot(url, screenshotPath);
+    } catch (error) {
+      console.error(`[Worker] Failed to generate screenshot for URL: ${url}`, error);
     }
 
     // Step 4: Calculate metrics (ensure we await the result)
