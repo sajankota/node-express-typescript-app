@@ -26,9 +26,8 @@ interface SEO {
     canonicalTagUrl: string | null;
     noindexTagPresent: boolean;
     noindexHeaderPresent: boolean;
-    has404ErrorPage: boolean; // Added field
+    has404ErrorPage: boolean;
 
-    // Optimized Heading Analysis
     headingAnalysis: {
         summary: {
             totalHeadings: number;
@@ -100,6 +99,7 @@ export interface IMetrics extends Document {
         performance: Performance;
         miscellaneous: Miscellaneous;
     };
+    screenshotPath: string | null;
     createdAt: Date;
 }
 
@@ -230,6 +230,7 @@ const MetricsSchema = new Schema<IMetrics>({
             required: true,
         },
     },
+    screenshotPath: { type: String, default: null }, // New field
     createdAt: { type: Date, default: Date.now },
 });
 
