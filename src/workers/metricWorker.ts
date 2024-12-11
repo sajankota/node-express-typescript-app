@@ -12,6 +12,12 @@ const fs = require("fs");
 // MongoDB URI
 const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/roundcodebox";
 
+// Determine the backend URL dynamically
+const NODE_SERVER_URL =
+  process.env.NODE_ENV === "production"
+    ? "http://api.roundcodebox.com:4000"
+    : "http://localhost:4000";
+
 // Function to connect to MongoDB
 const connectWorkerToDB = async () => {
   try {
@@ -26,9 +32,10 @@ const connectWorkerToDB = async () => {
 
 // Function to generate a screenshot for a given URL
 const generateScreenshot = async (url: string, outputPath: string) => {
+  let browser;
   try {
     console.log(`[Worker] Generating screenshot for URL: ${url}`);
-    const browser = await puppeteer.launch({
+    browser = await puppeteer.launch({
       headless: true,
       args: ["--no-sandbox", "--disable-setuid-sandbox"],
     });
@@ -36,11 +43,14 @@ const generateScreenshot = async (url: string, outputPath: string) => {
     await page.setViewport({ width: 1280, height: 768, deviceScaleFactor: 2 });
     await page.goto(url, { waitUntil: "networkidle0" });
     await page.screenshot({ path: outputPath, fullPage: false, type: "jpeg", quality: 90 });
-    await browser.close();
     console.log(`[Worker] Screenshot saved at: ${outputPath}`);
   } catch (error) {
     console.error(`[Worker] Failed to generate screenshot for ${url}:`, error);
     throw error;
+  } finally {
+    if (browser) {
+      await browser.close();
+    }
   }
 };
 
@@ -49,6 +59,10 @@ const generateScreenshot = async (url: string, outputPath: string) => {
   try {
     await connectWorkerToDB();
     const { userId, url } = workerData;
+
+    if (!url || typeof url !== "string") {
+      throw new Error("Invalid or missing 'url' in workerData.");
+    }
 
     console.log(`[Worker] Processing metrics for URL: ${url} and User: ${userId}`);
 
@@ -70,14 +84,16 @@ const generateScreenshot = async (url: string, outputPath: string) => {
     try {
       await generateScreenshot(url, screenshotPath);
 
-      // Save the screenshot path
+      // Save the public screenshot URL
+      const publicScreenshotUrl = `${NODE_SERVER_URL}/screenshots/${path.basename(screenshotPath)}`;
+      console.log(`[Worker] Public Screenshot URL: ${publicScreenshotUrl}`);
       await Metrics.updateOne(
         { userId, url },
-        { $set: { screenshotPath } },
+        { $set: { screenshotPath: publicScreenshotUrl } },
         { upsert: true }
       );
     } catch (error) {
-      console.error(`[Worker] Screenshot generation failed:`, error);
+      console.error(`[Worker] Screenshot generation failed for URL: ${url}`, error);
     }
 
     const metrics = await calculateMetrics(scrapedData.toObject());

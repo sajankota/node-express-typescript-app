@@ -16,15 +16,13 @@ export const getReportById = async (req: Request, res: Response): Promise<void> 
         console.log("[Debug] Fetching processed metric report with ID:", reportId);
 
         // Query the Metrics collection for the specific report
-        const report = await Metrics.findById(reportId); // Query using the processed metric ID
+        const report = await Metrics.findById(reportId);
 
         if (!report) {
             console.log(`[Error] No report found with ID: ${reportId}`);
             res.status(404).json({ message: "Report not found" });
             return;
         }
-
-        console.log("[Debug] Report found:", report);
 
         res.status(200).json({
             message: "Report retrieved successfully",
