@@ -1,13 +1,19 @@
 // src/workers/metricWorker.ts
 
-const { parentPort, workerData } = require("worker_threads");
-const mongoose = require("mongoose");
-const { Content } = require("../models/ContentModel");
-const { Metrics } = require("../models/MetricsModel");
-const { calculateMetrics } = require("../services/calculateMetrics");
-const puppeteer = require("puppeteer");
-const path = require("path");
-const fs = require("fs");
+import "regenerator-runtime/runtime"; // Ensure async/await works
+import { parentPort, workerData } from "worker_threads";
+import mongoose from "mongoose";
+import { Content } from "../models/ContentModel";
+import { Metrics } from "../models/MetricsModel";
+import { calculateMetrics } from "../services/calculateMetrics";
+import puppeteer from "puppeteer-extra";
+import type { Browser, Page } from "puppeteer"; // Import types from puppeteer
+import path from "path";
+import fs from "fs";
+
+// Import Puppeteer Stealth Plugin
+import StealthPlugin from "puppeteer-extra-plugin-stealth";
+puppeteer.use(StealthPlugin());
 
 // MongoDB URI
 const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/roundcodebox";
@@ -30,32 +36,69 @@ const connectWorkerToDB = async () => {
   }
 };
 
+// Function to check for captchas on the page
+const detectCaptcha = async (page: Page): Promise<boolean> => {
+  try {
+    const captchaDetected = await page.evaluate(() => {
+      return document.querySelector("iframe[src*='captcha']") !== null;
+    });
+
+    if (captchaDetected) {
+      console.warn("[Worker] Captcha detected on the page.");
+    }
+    return captchaDetected;
+  } catch (error) {
+    console.error("[Worker] Error during captcha detection:", error);
+    return false;
+  }
+};
+
 // Function to generate a screenshot for a given URL
-const generateScreenshot = async (url: string, outputPath: string) => {
-  let browser;
+const generateScreenshot = async (
+  browser: Browser,
+  url: string,
+  outputPath: string,
+  retries = 3
+): Promise<void> => {
+  let page: Page | null = null;
   try {
     console.log(`[Worker] Generating screenshot for URL: ${url}`);
-    browser = await puppeteer.launch({
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
-    });
-    const page = await browser.newPage();
+    page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 768, deviceScaleFactor: 2 });
-    await page.goto(url, { waitUntil: "networkidle0" });
+
+    await page.goto(url, {
+      waitUntil: "networkidle2",
+      timeout: 90000,
+    });
+
+    // Check for captchas
+    if (await detectCaptcha(page)) {
+      console.warn(`[Worker] Skipping URL due to captcha: ${url}`);
+      return;
+    }
+
+    // Take a screenshot of the visible viewport
     await page.screenshot({ path: outputPath, fullPage: false, type: "jpeg", quality: 90 });
     console.log(`[Worker] Screenshot saved at: ${outputPath}`);
   } catch (error) {
-    console.error(`[Worker] Failed to generate screenshot for ${url}:`, error);
-    throw error;
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    if (retries > 0) {
+      console.warn(`[Worker] Retry (${3 - retries}) for URL: ${url} due to: ${errorMessage}`);
+      await generateScreenshot(browser, url, outputPath, retries - 1);
+    } else {
+      console.error(`[Worker] Failed to generate screenshot for ${url} after retries: ${errorMessage}`);
+      throw error;
+    }
   } finally {
-    if (browser) {
-      await browser.close();
+    if (page) {
+      await page.close();
     }
   }
 };
 
 // Main worker logic
 (async () => {
+  let browser: Browser | null = null;
   try {
     await connectWorkerToDB();
     const { userId, url } = workerData;
@@ -73,6 +116,11 @@ const generateScreenshot = async (url: string, outputPath: string) => {
       return;
     }
 
+    browser = await puppeteer.launch({
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    });
+
     const screenshotDir = path.resolve(__dirname, "../../screenshots");
     if (!fs.existsSync(screenshotDir)) fs.mkdirSync(screenshotDir, { recursive: true });
 
@@ -82,9 +130,8 @@ const generateScreenshot = async (url: string, outputPath: string) => {
     );
 
     try {
-      await generateScreenshot(url, screenshotPath);
+      await generateScreenshot(browser, url, screenshotPath);
 
-      // Save the public screenshot URL
       const publicScreenshotUrl = `${NODE_SERVER_URL}/screenshots/${path.basename(screenshotPath)}`;
       console.log(`[Worker] Public Screenshot URL: ${publicScreenshotUrl}`);
       await Metrics.updateOne(
@@ -93,7 +140,8 @@ const generateScreenshot = async (url: string, outputPath: string) => {
         { upsert: true }
       );
     } catch (error) {
-      console.error(`[Worker] Screenshot generation failed for URL: ${url}`, error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      console.error(`[Worker] Screenshot generation failed for URL: ${url}`, errorMessage);
     }
 
     const metrics = await calculateMetrics(scrapedData.toObject());
@@ -106,11 +154,14 @@ const generateScreenshot = async (url: string, outputPath: string) => {
     console.log(`[Worker] Metrics processed successfully for URL: ${url}`);
     parentPort?.postMessage(`[Worker] Metrics processed successfully for URL: ${url}`);
   } catch (error) {
-    console.error(`[Worker] Error processing metrics:`, error);
-    parentPort?.postMessage(
-      `[Worker] Error processing metrics: ${error instanceof Error ? error.message : "Unknown error"}`
-    );
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error(`[Worker] Error processing metrics: ${errorMessage}`);
+    parentPort?.postMessage(`[Worker] Error processing metrics: ${errorMessage}`);
   } finally {
+    if (browser) {
+      await browser.close();
+      console.log("[Worker] Browser instance closed.");
+    }
     await mongoose.disconnect();
     console.log("[Worker] Disconnected from MongoDB");
   }
