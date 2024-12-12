@@ -9,30 +9,33 @@ import path from "path";
  * @param url The URL for which metrics should be processed.
  */
 export const triggerMetricProcessing = (userId: string, url: string) => {
-    // Path to the Worker Thread file
-    const workerPath = path.resolve(__dirname, "../dist/workers/metricWorker.js");
+    try {
+        const isProduction = process.env.NODE_ENV === "production";
+        const workerPath = path.resolve(
+            __dirname,
+            isProduction ? "../../dist/workers/metricWorker.js" : "../../dist/workers/metricWorker.js" // Ensure JS file is used
+        );
 
-    // Create a new Worker Thread
-    const worker = new Worker(workerPath, {
-        workerData: { userId, url }, // Pass userId and URL to the worker
-    });
+        console.log(`[WorkerService] Worker Path: ${workerPath}`);
 
-    // Listen for messages from the worker
-    worker.on("message", (message) => {
-        console.log(`[Worker Message]: ${message}`);
-    });
+        const worker = new Worker(workerPath, { workerData: { userId, url } });
 
-    // Handle worker errors
-    worker.on("error", (error) => {
-        console.error(`[Worker Error]:`, error);
-    });
+        worker.on("message", (message) => console.log(`[Worker Message]: ${message}`));
 
-    // Handle worker exit
-    worker.on("exit", (exitCode) => {
-        if (exitCode !== 0) {
-            console.error(`[Worker] Exited with code: ${exitCode}`);
+        worker.on("error", (error) => console.error(`[Worker Error]:`, error));
+
+        worker.on("exit", (exitCode) => {
+            if (exitCode !== 0) {
+                console.error(`[Worker] Exited with error code: ${exitCode}`);
+            } else {
+                console.log(`[Worker] Successfully completed for URL: ${url}`);
+            }
+        });
+    } catch (error) {
+        if (error instanceof Error) {
+            console.error("[WorkerService] Failed to start worker:", error.message);
         } else {
-            console.log(`[Worker] Worker completed successfully for URL: ${url}`);
+            console.error("[WorkerService] Unknown error occurred while starting worker:", error);
         }
-    });
+    }
 };

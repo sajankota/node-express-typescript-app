@@ -1,34 +1,41 @@
 // src/controllers/getReportById.ts
 
 import { Request, Response } from "express";
-import { Metrics } from "../models/MetricsModel"; // Import Metrics model
+import { Metrics } from "../models/MetricsModel";
 
 export const getReportById = async (req: Request, res: Response): Promise<void> => {
     try {
         const { reportId } = req.params;
 
         if (!reportId) {
-            console.log("[Error] Missing reportId in request parameters");
+            console.error("[Error] Missing reportId in request parameters");
             res.status(400).json({ message: "Missing reportId in request parameters" });
             return;
         }
 
         console.log("[Debug] Fetching processed metric report with ID:", reportId);
 
-        // Query the Metrics collection for the specific report
-        const report = await Metrics.findById(reportId); // Query using the processed metric ID
+        // Query the Metrics collection for the specific report using `lean` for better performance
+        const report = await Metrics.findById(reportId)
+            .lean() // Use lean() to return a plain JavaScript object, avoiding Mongoose overhead
+            .exec(); // Ensures the query is executed immediately
 
         if (!report) {
-            console.log(`[Error] No report found with ID: ${reportId}`);
+            console.error(`[Error] No report found with ID: ${reportId}`);
             res.status(404).json({ message: "Report not found" });
             return;
         }
 
-        console.log("[Debug] Report found:", report);
-
+        // Send the formatted response
         res.status(200).json({
             message: "Report retrieved successfully",
-            data: report,
+            data: {
+                userId: report.userId,
+                url: report.url,
+                metrics: report.metrics,
+                screenshotPath: report.screenshotPath,
+                createdAt: report.createdAt,
+            },
         });
     } catch (error) {
         console.error("[Get Report By ID] Error:", error);
@@ -37,4 +44,3 @@ export const getReportById = async (req: Request, res: Response): Promise<void> 
         res.status(500).json({ message: "Error retrieving report", error: errorMessage });
     }
 };
-

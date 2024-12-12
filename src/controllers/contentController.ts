@@ -2,7 +2,6 @@
 
 import { Request, Response } from "express";
 import { fetchWithAxios, fetchWithPuppeteer, processContent, saveContentToDB } from "../services/contentService";
-import { triggerMetricProcessing } from "./processMetrics"; // Import the trigger function
 
 export const getContent = async (req: Request, res: Response): Promise<void> => {
     console.log("[Debug] Request Body:", req.body); // Debug log for request body
@@ -32,7 +31,7 @@ export const getContent = async (req: Request, res: Response): Promise<void> => 
         const finalTextContent = textContent?.trim() || "No content found";
         const dynamic = htmlContent.includes("<script>"); // Check for dynamic content
 
-        // Step 3: Save scraped content to the database
+        // Step 3: Save scraped content to the database (this triggers worker processing)
         await saveContentToDB({
             userId, // Include userId
             url,
@@ -45,10 +44,7 @@ export const getContent = async (req: Request, res: Response): Promise<void> => 
 
         console.log(`[Content] Scraping data saved for URL: ${url}`);
 
-        // Step 4: Trigger metric processing
-        triggerMetricProcessing(userId, url);
-
-        // Step 5: Respond to the client
+        // Step 4: Respond to the client
         res.status(200).json({
             message: "Content scraped and metrics processing triggered successfully.",
             data: { url, metadata, textContent: finalTextContent, favicon, dynamic },

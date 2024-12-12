@@ -1,5 +1,4 @@
 // src/models/MetricsModel.ts
-
 import mongoose, { Schema, Document } from "mongoose";
 
 // Define interfaces for each metric type
@@ -26,9 +25,8 @@ interface SEO {
     canonicalTagUrl: string | null;
     noindexTagPresent: boolean;
     noindexHeaderPresent: boolean;
-    has404ErrorPage: boolean; // Added field
+    has404ErrorPage: boolean;
 
-    // Optimized Heading Analysis
     headingAnalysis: {
         summary: {
             totalHeadings: number;
@@ -100,13 +98,14 @@ export interface IMetrics extends Document {
         performance: Performance;
         miscellaneous: Miscellaneous;
     };
+    screenshotPath: string | null;
     createdAt: Date;
 }
 
 // Define the Mongoose schema
 const MetricsSchema = new Schema<IMetrics>({
-    userId: { type: String, required: true },
-    url: { type: String, required: true },
+    userId: { type: String, required: true, index: true }, // Indexed for faster querying
+    url: { type: String, required: true, index: true },
     metrics: {
         seo: {
             type: new Schema({
@@ -132,9 +131,8 @@ const MetricsSchema = new Schema<IMetrics>({
                 canonicalTagUrl: { type: String, default: null },
                 noindexTagPresent: { type: Boolean, required: true },
                 noindexHeaderPresent: { type: Boolean, required: true },
-                has404ErrorPage: { type: Boolean, required: true }, // Added field
+                has404ErrorPage: { type: Boolean, required: true },
 
-                // Optimized Heading Analysis
                 headingAnalysis: {
                     type: new Schema({
                         summary: {
@@ -230,8 +228,11 @@ const MetricsSchema = new Schema<IMetrics>({
             required: true,
         },
     },
+    screenshotPath: { type: String, default: null },
     createdAt: { type: Date, default: Date.now },
 });
+
+MetricsSchema.index({ userId: 1, url: 1 }, { unique: true }); // Compound index for userId and url
 
 // Export the Mongoose model
 export const Metrics = mongoose.model<IMetrics>("Metrics", MetricsSchema);

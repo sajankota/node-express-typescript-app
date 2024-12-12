@@ -5,6 +5,7 @@ dotenv.config();
 
 import express from "express";
 import cors from "cors";
+import path from "path";
 import { trackApiCall } from './middleware/analyticsMiddleware';
 import connectDB from "./config/db";
 import authRoutes from "./routes/authRoutes";
@@ -56,6 +57,10 @@ app.use(
 app.use(express.json());
 
 connectDB();
+
+// Serve the screenshots directory as static files
+const screenshotsDir = path.resolve(__dirname, "../screenshots");
+app.use("/screenshots", express.static(screenshotsDir));
 
 // Register routes
 app.use("/api/auth", authRoutes);
