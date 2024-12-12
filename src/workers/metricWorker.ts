@@ -18,7 +18,7 @@ puppeteer.use(StealthPlugin());
 const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/roundcodebox";
 const NODE_SERVER_URL =
   process.env.NODE_ENV === "production"
-    ? "http://api.roundcodebox.com:4000"
+    ? "http://api.roundcodebox.com"
     : "http://localhost:4000";
 
 // Function to connect to MongoDB
