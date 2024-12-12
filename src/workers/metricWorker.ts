@@ -16,7 +16,10 @@ import StealthPlugin from "puppeteer-extra-plugin-stealth";
 puppeteer.use(StealthPlugin());
 
 const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/roundcodebox";
-const NODE_SERVER_URL = process.env.NODE_ENV === "production" ? "http://api.roundcodebox.com:4000" : "http://localhost:4000";
+const NODE_SERVER_URL =
+  process.env.NODE_ENV === "production"
+    ? "http://api.roundcodebox.com:4000"
+    : "http://localhost:4000";
 
 // Function to connect to MongoDB
 const connectWorkerToDB = async () => {
@@ -30,17 +33,10 @@ const connectWorkerToDB = async () => {
   }
 };
 
-// Function to check for captchas on the page
+// Function to detect captchas on a page
 const detectCaptcha = async (page: Page): Promise<boolean> => {
   try {
-    const captchaDetected = await page.evaluate(() => {
-      return document.querySelector("iframe[src*='captcha']") !== null;
-    });
-
-    if (captchaDetected) {
-      console.warn("[Worker] Captcha detected on the page.");
-    }
-    return captchaDetected;
+    return await page.evaluate(() => !!document.querySelector("iframe[src*='captcha']"));
   } catch (error) {
     console.error("[Worker] Error during captcha detection:", error);
     return false;
@@ -51,8 +47,7 @@ const detectCaptcha = async (page: Page): Promise<boolean> => {
 const generateScreenshot = async (
   browser: Browser,
   url: string,
-  outputPath: string,
-  retries = 3
+  outputPath: string
 ): Promise<void> => {
   let page: Page | null = null;
   try {
@@ -65,28 +60,15 @@ const generateScreenshot = async (
       timeout: 90000,
     });
 
-    // Check for captchas
     if (await detectCaptcha(page)) {
       console.warn(`[Worker] Skipping URL due to captcha: ${url}`);
       return;
     }
 
-    // Take a screenshot of the visible viewport
     await page.screenshot({ path: outputPath, fullPage: false, type: "jpeg", quality: 90 });
     console.log(`[Worker] Screenshot saved at: ${outputPath}`);
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    if (retries > 0) {
-      console.warn(`[Worker] Retry (${3 - retries}) for URL: ${url} due to: ${errorMessage}`);
-      await generateScreenshot(browser, url, outputPath, retries - 1);
-    } else {
-      console.error(`[Worker] Failed to generate screenshot for ${url} after retries: ${errorMessage}`);
-      throw error;
-    }
   } finally {
-    if (page) {
-      await page.close();
-    }
+    if (page) await page.close();
   }
 };
 
@@ -95,8 +77,8 @@ const generateScreenshot = async (
   let browser: Browser | null = null;
   try {
     await connectWorkerToDB();
-    const { userId, url } = workerData;
 
+    const { userId, url } = workerData;
     if (!url || typeof url !== "string") {
       throw new Error("Invalid or missing 'url' in workerData.");
     }
@@ -116,37 +98,38 @@ const generateScreenshot = async (
     });
 
     const screenshotDir = path.resolve(__dirname, "../../screenshots");
-    if (!fs.existsSync(screenshotDir)) fs.mkdirSync(screenshotDir, { recursive: true });
+    fs.mkdirSync(screenshotDir, { recursive: true });
 
-    const screenshotPath = path.resolve(
+    const screenshotPath = path.join(
       screenshotDir,
       `${url.replace(/[^a-zA-Z0-9]/g, "_")}.jpeg`
     );
 
-    try {
-      await generateScreenshot(browser, url, screenshotPath);
-
-      const publicScreenshotUrl = `${NODE_SERVER_URL}/screenshots/${path.basename(screenshotPath)}`;
-      console.log(`[Worker] Public Screenshot URL: ${publicScreenshotUrl}`);
-      await Metrics.updateOne(
+    // Concurrently generate the screenshot and calculate metrics
+    const screenshotPromise = generateScreenshot(browser, url, screenshotPath).then(() => {
+      const publicScreenshotUrl = `${NODE_SERVER_URL}/screenshots/${path.basename(
+        screenshotPath
+      )}`;
+      return Metrics.updateOne(
         { userId, url },
         { $set: { screenshotPath: publicScreenshotUrl } },
         { upsert: true }
       );
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      console.error(`[Worker] Screenshot generation failed for URL: ${url}`, errorMessage);
-    }
+    });
 
-    const metrics = await calculateMetrics(scrapedData.toObject());
-    await Metrics.updateOne(
-      { userId, url },
-      { $set: { metrics, createdAt: new Date() } },
-      { upsert: true }
+    const metricsPromise = calculateMetrics(scrapedData.toObject()).then((metrics) =>
+      Metrics.updateOne(
+        { userId, url },
+        { $set: { metrics, createdAt: new Date() } },
+        { upsert: true }
+      )
     );
 
-    console.log(`[Worker] Metrics processed successfully for URL: ${url}`);
-    parentPort?.postMessage(`[Worker] Metrics processed successfully for URL: ${url}`);
+    // Wait for both tasks to complete
+    await Promise.all([screenshotPromise, metricsPromise]);
+
+    console.log(`[Worker] Metrics and screenshot processed successfully for URL: ${url}`);
+    parentPort?.postMessage(`[Worker] Metrics and screenshot processed successfully for URL: ${url}`);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error(`[Worker] Error processing metrics: ${errorMessage}`);

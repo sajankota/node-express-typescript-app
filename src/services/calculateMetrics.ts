@@ -93,28 +93,19 @@ interface MetricResults {
  * Main function to calculate metrics for the given content.
  */
 export const calculateMetrics = async (data: IContent): Promise<MetricResults> => {
-    const url = data.url;
-    const htmlContent = data.htmlContent || "";
-    const textContent = data.textContent || ""; // For calculating text-to-HTML ratio
-    const headers = data.headers || {};
+    const { url, htmlContent = "", textContent = "", headers = {}, favicon } = data;
 
     console.debug("[calculateMetrics] Starting metrics calculation...");
 
     // Validate inputs
-    if (!htmlContent.trim()) {
-        throw new Error("HTML content is missing or empty.");
-    }
-
-    if (!url) {
-        throw new Error("Cannot calculate metrics without a valid URL.");
-    }
+    if (!htmlContent.trim()) throw new Error("HTML content is missing or empty.");
+    if (!url) throw new Error("Cannot calculate metrics without a valid URL.");
 
     try {
         /** SEO Metrics */
         const title = SEOHelpers.extractFirstTitleTag(htmlContent);
-        const titlePresent = !!title;
         const titleLength = title?.length || 0;
-        const titleMessage = titlePresent
+        const titleMessage = title
             ? titleLength < 50
                 ? TITLE_MESSAGES.TITLE_LENGTH_SHORT
                 : titleLength > 60
@@ -123,9 +114,8 @@ export const calculateMetrics = async (data: IContent): Promise<MetricResults> =
             : TITLE_MESSAGES.TITLE_MISSING;
 
         const metaDescription = SEOHelpers.extractMetaDescription(htmlContent);
-        const metaDescriptionPresent = !!metaDescription;
         const metaDescriptionLength = metaDescription?.length || 0;
-        const metaDescriptionMessage = metaDescriptionPresent
+        const metaDescriptionMessage = metaDescription
             ? metaDescriptionLength < 150
                 ? META_DESCRIPTION_MESSAGES.META_DESCRIPTION_LENGTH_SHORT
                 : metaDescriptionLength > 160
@@ -138,31 +128,18 @@ export const calculateMetrics = async (data: IContent): Promise<MetricResults> =
         const totalHeadings = headingTags.length;
         const headingIssues = SEOHelpers.analyzeHeadingIssues(headingTags, title);
 
-        const headingAnalysis = {
-            summary: {
-                totalHeadings,
-                headingTagCounts,
-            },
-            issues: {
-                ...headingIssues,
-                excessiveHeadings: totalHeadings > 50,
-                insufficientHeadings: totalHeadings < 3,
-            },
-            detailedHeadings: headingTags,
-        };
-
         const seoMetrics = {
             title,
-            titlePresent,
+            titlePresent: !!title,
             titleLength,
             titleMessage,
             metaDescription,
-            metaDescriptionPresent,
+            metaDescriptionPresent: !!metaDescription,
             metaDescriptionLength,
             metaDescriptionMessage,
             seoFriendlyUrl: SEOHelpers.isSeoFriendlyUrl(url),
-            faviconPresent: !!data.favicon,
-            faviconUrl: data.favicon || null,
+            faviconPresent: !!favicon,
+            faviconUrl: favicon || null,
             robotsTxtAccessible: SEOHelpers.isRobotsTxtAccessible(url),
             inPageLinks: SEOHelpers.countInPageLinks(htmlContent),
             languageDeclared: SEOHelpers.extractLangTag(htmlContent),
@@ -173,10 +150,21 @@ export const calculateMetrics = async (data: IContent): Promise<MetricResults> =
             noindexHeaderPresent: SEOHelpers.hasNoindexHeader(headers),
             keywordsPresent: SEOHelpers.extractKeywords(htmlContent).length > 0 ? "Yes" : "No",
             has404ErrorPage: await SEOHelpers.has404ErrorPage(url),
-            headingAnalysis,
+            headingAnalysis: {
+                summary: {
+                    totalHeadings,
+                    headingTagCounts,
+                },
+                issues: {
+                    ...headingIssues,
+                    excessiveHeadings: totalHeadings > 50,
+                    insufficientHeadings: totalHeadings < 3,
+                },
+                detailedHeadings: headingTags,
+            },
         };
 
-        console.debug("[calculateMetrics] SEO Metrics calculated:", seoMetrics);
+        console.debug("[calculateMetrics] SEO Metrics calculated", seoMetrics);
 
         /** Security Metrics */
         const securityMetrics = {
@@ -186,7 +174,7 @@ export const calculateMetrics = async (data: IContent): Promise<MetricResults> =
             hstsEnabled: SecurityHelpers.isHstsEnabled(headers),
         };
 
-        console.debug("[calculateMetrics] Security Metrics calculated:", securityMetrics);
+        console.debug("[calculateMetrics] Security Metrics calculated", securityMetrics);
 
         /** Performance Metrics */
         const performanceMetrics = {
@@ -195,7 +183,7 @@ export const calculateMetrics = async (data: IContent): Promise<MetricResults> =
             textCompressionEnabled: PerformanceHelpers.isTextCompressionEnabled(headers),
         };
 
-        console.debug("[calculateMetrics] Performance Metrics calculated:", performanceMetrics);
+        console.debug("[calculateMetrics] Performance Metrics calculated", performanceMetrics);
 
         /** Miscellaneous Metrics */
         const miscellaneousMetrics = {
@@ -205,9 +193,8 @@ export const calculateMetrics = async (data: IContent): Promise<MetricResults> =
             textToHtmlRatio: MiscellaneousHelpers.calculateTextToHtmlRatio(htmlContent, textContent),
         };
 
-        console.debug("[calculateMetrics] Miscellaneous Metrics calculated:", miscellaneousMetrics);
+        console.debug("[calculateMetrics] Miscellaneous Metrics calculated", miscellaneousMetrics);
 
-        // Combine all metrics into the result object
         return {
             seo: seoMetrics,
             security: securityMetrics,

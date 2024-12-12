@@ -1,5 +1,4 @@
 // src/models/MetricsModel.ts
-
 import mongoose, { Schema, Document } from "mongoose";
 
 // Define interfaces for each metric type

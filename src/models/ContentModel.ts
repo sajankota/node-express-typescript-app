@@ -1,9 +1,8 @@
 // src/models/ContentModel.ts
 
-import mongoose, { Schema, Document } from "mongoose";
+import mongoose, { Schema } from "mongoose";
 
-// Define the Content interface
-export interface IContent extends Document {
+export interface IContent {
     url: string;
     metadata: {
         title: string | null;
@@ -18,14 +17,13 @@ export interface IContent extends Document {
     dynamic: boolean;
     htmlContent: string;
     headers?: Record<string, string | undefined>; // Optional `headers` property
-    userId: string; // User ID for association
+    userId: string;
     createdAt: Date;
 }
 
-// Define the Content schema
 const ContentSchema = new Schema<IContent>(
     {
-        url: { type: String, required: true, index: true }, // Indexed for faster querying
+        url: { type: String, required: true, index: true },
         metadata: {
             title: { type: String, default: null },
             description: { type: String, default: null },
@@ -35,27 +33,16 @@ const ContentSchema = new Schema<IContent>(
             ogImage: { type: String, default: null },
         },
         favicon: { type: String, default: null },
-        textContent: {
-            type: String,
-            default: null, // Allow null values for missing `textContent`
-            required: false, // Made optional
-        },
+        textContent: { type: String, default: null, required: false },
         dynamic: { type: Boolean, required: true },
         htmlContent: { type: String, required: true },
-        headers: { type: Map, of: String, required: false }, // Optional `headers` field
-        userId: { type: String, required: true, index: true }, // Indexed for faster querying
+        headers: { type: Map, of: String, required: false },
+        userId: { type: String, required: true, index: true },
         createdAt: { type: Date, default: Date.now },
     },
-    { minimize: true } // Remove empty objects from the database
+    { minimize: true }
 );
 
-// Override the `toObject` method to ensure proper typing
-ContentSchema.method("toObject", function (this: IContent) {
-    return this.toJSON() as IContent;
-});
-
-// Compound index for common query patterns
 ContentSchema.index({ userId: 1, url: 1 }, { unique: true });
 
-// Create the Content model
 export const Content = mongoose.model<IContent>("Content", ContentSchema);
