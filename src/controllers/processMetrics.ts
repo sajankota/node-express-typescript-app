@@ -5,8 +5,6 @@ import { Content, IContent } from "../models/ContentModel";
 import { Metrics } from "../models/MetricsModel";
 import { calculateMetrics } from "../services/calculateMetrics";
 import { FilterQuery } from "mongoose";
-import { Worker } from "worker_threads";
-import path from "path";
 
 /**
  * Process metrics for the given URL.
@@ -46,12 +44,17 @@ export const processMetrics = async (req: Request, res: Response): Promise<void>
                 throw new Error("Incomplete metrics data.");
             }
 
-            await Metrics.create({
-                userId: plainData.userId,
-                url: plainData.url,
-                metrics,
-                createdAt: new Date(),
-            });
+            // Use the optimized `MetricsModel.ts` to store calculated metrics
+            await Metrics.updateOne(
+                { userId: plainData.userId, url: plainData.url },
+                {
+                    $set: {
+                        metrics,
+                        createdAt: new Date(),
+                    },
+                },
+                { upsert: true } // Ensures the document is created if it doesn't exist
+            );
 
             metricsData.push(metrics);
         }

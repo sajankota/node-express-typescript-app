@@ -1,13 +1,13 @@
 // src/workers/metricWorker.ts
 
-import "regenerator-runtime/runtime"; // Ensure async/await works
+import "regenerator-runtime/runtime";
 import { parentPort, workerData } from "worker_threads";
 import mongoose from "mongoose";
 import { Content } from "../models/ContentModel";
 import { Metrics } from "../models/MetricsModel";
 import { calculateMetrics } from "../services/calculateMetrics";
 import puppeteer from "puppeteer-extra";
-import type { Browser, Page } from "puppeteer"; // Import types from puppeteer
+import type { Browser, Page } from "puppeteer";
 import path from "path";
 import fs from "fs";
 
@@ -15,14 +15,8 @@ import fs from "fs";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
 puppeteer.use(StealthPlugin());
 
-// MongoDB URI
 const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/roundcodebox";
-
-// Determine the backend URL dynamically
-const NODE_SERVER_URL =
-  process.env.NODE_ENV === "production"
-    ? "http://api.roundcodebox.com:4000"
-    : "http://localhost:4000";
+const NODE_SERVER_URL = process.env.NODE_ENV === "production" ? "http://api.roundcodebox.com:4000" : "http://localhost:4000";
 
 // Function to connect to MongoDB
 const connectWorkerToDB = async () => {

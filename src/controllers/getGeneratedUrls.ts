@@ -20,8 +20,7 @@ export const getGeneratedUrls = async (req: AuthRequest, res: Response): Promise
         const metrics = await Metrics.find(
             { userId }, // Match by userId
             { url: 1, createdAt: 1, _id: 1 } // Only fetch `url`, `createdAt`, and `_id` (reportId)
-        )
-            .sort({ createdAt: -1 }); // Sort by newest first
+        ).sort({ createdAt: -1 }); // Sort by newest first
 
         if (!metrics || metrics.length === 0) {
             res.status(404).json({ message: "No URLs found for the given userId" });

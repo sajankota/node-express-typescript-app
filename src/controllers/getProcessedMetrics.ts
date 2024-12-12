@@ -16,7 +16,10 @@ export const getProcessedMetrics = async (req: Request, res: Response): Promise<
         console.log(`[Debug] Query Params: userId=${userId}, url=${url}`);
 
         // Step 2: Build the query object
-        const query = { userId, url };
+        const query = {
+            userId: String(userId), // Ensure userId is a string
+            url: String(url), // Ensure URL is a string
+        };
 
         // Step 3: Query the Metrics collection with projection to reduce response size
         const processedMetrics = await Metrics.findOne(query, {

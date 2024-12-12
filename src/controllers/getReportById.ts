@@ -15,7 +15,7 @@ export const getReportById = async (req: Request, res: Response): Promise<void> 
 
         console.log("[Debug] Fetching processed metric report with ID:", reportId);
 
-        // Query the Metrics collection for the specific report
+        // Query the Metrics collection for the specific report using the optimized model
         const report = await Metrics.findById(reportId);
 
         if (!report) {
@@ -24,9 +24,16 @@ export const getReportById = async (req: Request, res: Response): Promise<void> 
             return;
         }
 
+        // Format the response to include additional details if necessary
         res.status(200).json({
             message: "Report retrieved successfully",
-            data: report,
+            data: {
+                userId: report.userId,
+                url: report.url,
+                metrics: report.metrics,
+                screenshotPath: report.screenshotPath,
+                createdAt: report.createdAt,
+            },
         });
     } catch (error) {
         console.error("[Get Report By ID] Error:", error);
@@ -35,4 +42,3 @@ export const getReportById = async (req: Request, res: Response): Promise<void> 
         res.status(500).json({ message: "Error retrieving report", error: errorMessage });
     }
 };
-
