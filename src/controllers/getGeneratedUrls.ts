@@ -46,9 +46,27 @@ export const getGeneratedUrls = async (req: AuthRequest, res: Response): Promise
         // Step 3: Transform data for the response
         const transformedData = metrics.map((metric) => ({
             url: metric.url,
-            reportId: metric._id, // Use `_id` as the `reportId`
+            reportId: metric._id.toString(), // Use `_id` as the `reportId`
             generatedAt: metric.createdAt,
         }));
+
+        console.log("[Debug] Transformed Data:", transformedData);
+        // Emit WebSocket event for real-time updates
+        // Emit WebSocket event for real-time updates
+        const io = req.app.get("io"); // Get the WebSocket server instance
+        if (io) {
+            const latestMetric = transformedData[0]; // Send only the latest project
+            io.to(userId).emit("project_update", latestMetric);
+            console.log(`[Debug] project_update event emitted for userId: ${userId}`, latestMetric);
+
+            // Emit a simple variable
+            const simpleMessage = `New project added: ${latestMetric.url}`;
+            io.to(userId).emit("simple_message", simpleMessage); // Emit a simple variable
+            console.log(`[Debug] simple_message event emitted for userId: ${userId}`, simpleMessage);
+        } else {
+            console.warn("[Warning] WebSocket server not found in app.");
+        }
+
 
         // Step 4: Send the response
         res.status(200).json({
