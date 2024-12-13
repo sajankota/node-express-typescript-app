@@ -1,6 +1,6 @@
 // src/models/MetricsModel.ts
 
-import mongoose, { Schema, Document } from "mongoose";
+import mongoose, { Schema, Document, Types } from "mongoose";
 
 // Define interfaces for each metric type
 interface SEO {
@@ -90,6 +90,7 @@ interface Miscellaneous {
 
 // Define the IMetrics interface
 export interface IMetrics extends Document {
+    _id: Types.ObjectId; // Explicitly defining the _id field
     userId: string;
     url: string;
     status: "processing" | "ready" | "error";
@@ -183,7 +184,7 @@ const MetricsSchema = new Schema<IMetrics>({
                     },
                 },
             },
-            { _id: false }
+            { _id: false } // Prevent creation of nested _id fields
         ),
         required: true,
         default: {}, // Default to an empty object to allow schema defaults to apply

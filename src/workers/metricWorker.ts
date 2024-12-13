@@ -15,10 +15,6 @@ import StealthPlugin from "puppeteer-extra-plugin-stealth";
 puppeteer.use(StealthPlugin());
 
 const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/roundcodebox";
-const NODE_SERVER_URL =
-  process.env.NODE_ENV === "production"
-    ? "http://api.roundcodebox.com"
-    : "http://localhost:4000";
 
 // Connect to MongoDB
 const connectWorkerToDB = async (): Promise<void> => {
@@ -45,7 +41,7 @@ const generateScreenshot = async (
     await page.goto(url, { waitUntil: "networkidle2", timeout: 90000 });
 
     await page.screenshot({ path: outputPath, fullPage: true, type: "jpeg", quality: 90 });
-    return `${NODE_SERVER_URL}/screenshots/${path.basename(outputPath)}`;
+    return `/screenshots/${path.basename(outputPath)}`;
   } catch (error) {
     console.error(`[Worker] Error generating screenshot for URL: ${url}`, error);
     return null;
@@ -75,7 +71,7 @@ const generateScreenshot = async (
         { $set: { status: "error" } },
         { upsert: true }
       );
-      parentPort?.postMessage(`[Worker] No scraped data found for URL: ${url}`);
+      parentPort?.postMessage({ userId, url, status: "error" });
       return;
     }
 
@@ -84,6 +80,7 @@ const generateScreenshot = async (
       { $set: { status: "processing" } },
       { upsert: true }
     );
+    parentPort?.postMessage({ userId, url, status: "processing" });
 
     browser = await puppeteer.launch({
       headless: true,
@@ -116,7 +113,7 @@ const generateScreenshot = async (
     );
 
     console.log(`[Worker] Metrics processed successfully for URL: ${url}`);
-    parentPort?.postMessage(`[Worker] Metrics and screenshot processed successfully for URL: ${url}`);
+    parentPort?.postMessage({ userId, url, status: "ready" });
   } catch (error) {
     let errorMessage = "An unknown error occurred";
     if (error instanceof Error) {
@@ -131,7 +128,7 @@ const generateScreenshot = async (
       { $set: { status: "error" } },
       { upsert: true }
     );
-    parentPort?.postMessage(`[Worker] Error processing metrics: ${errorMessage}`);
+    parentPort?.postMessage({ userId, url, status: "error" });
   } finally {
     if (browser) await browser.close();
     await mongoose.disconnect();
