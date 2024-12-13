@@ -6,137 +6,45 @@ import * as SecurityHelpers from "./helpers/SecurityHelpers";
 import * as PerformanceHelpers from "./helpers/PerformanceHelpers";
 import * as MiscellaneousHelpers from "./helpers/MiscellaneousHelpers";
 import { TITLE_MESSAGES, META_DESCRIPTION_MESSAGES } from "../constants/seoMetricsMessages";
+import { MetricResults } from "../types/MetricsTypes";
 
-interface MetricResults {
-    seo: {
-        title: string | null;
-        titlePresent: boolean;
-        titleLength: number;
-        titleMessage: string;
-        metaDescription: string | null;
-        metaDescriptionPresent: boolean;
-        metaDescriptionLength: number;
-        metaDescriptionMessage: string;
-        seoFriendlyUrl: boolean;
-        faviconPresent: boolean;
-        faviconUrl: string | null;
-        robotsTxtAccessible: boolean;
-        inPageLinks: number;
-        languageDeclared: string | null;
-        hreflangTagPresent: string[];
-        canonicalTagPresent: boolean;
-        canonicalTagUrl: string | null;
-        noindexTagPresent: boolean;
-        noindexHeaderPresent: boolean;
-        keywordsPresent: string;
-        has404ErrorPage: boolean;
-        headingAnalysis: {
-            summary: {
-                totalHeadings: number;
-                headingTagCounts: {
-                    h1: number;
-                    h2: number;
-                    h3: number;
-                    h4: number;
-                    h5: number;
-                    h6: number;
-                };
-            };
-            issues: {
-                multipleH1Tags: boolean;
-                missingH1Tag: boolean;
-                h1MatchesTitle: boolean;
-                sequence: {
-                    hasIssues: boolean;
-                    skippedLevels: string[];
-                };
-                invalidTextLength: {
-                    tooShort: string[];
-                    tooLong: string[];
-                };
-                duplicateHeadings: string[];
-                excessiveHeadings: boolean;
-                insufficientHeadings: boolean;
-            };
-            detailedHeadings: {
-                level: string;
-                content: string;
-                order: number;
-            }[];
-        };
-    };
-    security: {
-        httpsEnabled: boolean;
-        mixedContent: boolean;
-        serverSignatureHidden: boolean;
-        hstsEnabled: boolean;
-    };
-    performance: {
-        pageSizeKb: number;
-        httpRequests: {
-            total: number;
-            links: number;
-            scripts: number;
-            images: number;
-        };
-        textCompressionEnabled: boolean;
-    };
-    miscellaneous: {
-        metaViewportPresent: boolean;
-        characterSet: string | null;
-        sitemapAccessible: boolean;
-        textToHtmlRatio: number;
-    };
-}
-
-/**
- * Main function to calculate metrics for the given content.
- */
 export const calculateMetrics = async (data: IContent): Promise<MetricResults> => {
     const { url, htmlContent = "", textContent = "", headers = {}, favicon } = data;
 
-    console.debug("[calculateMetrics] Starting metrics calculation...");
-
-    // Validate inputs
     if (!htmlContent.trim()) throw new Error("HTML content is missing or empty.");
     if (!url) throw new Error("Cannot calculate metrics without a valid URL.");
 
-    try {
-        /** SEO Metrics */
-        const title = SEOHelpers.extractFirstTitleTag(htmlContent);
-        const titleLength = title?.length || 0;
-        const titleMessage = title
-            ? titleLength < 50
-                ? TITLE_MESSAGES.TITLE_LENGTH_SHORT
-                : titleLength > 60
-                    ? TITLE_MESSAGES.TITLE_LENGTH_LONG
-                    : TITLE_MESSAGES.TITLE_LENGTH_OPTIMAL
-            : TITLE_MESSAGES.TITLE_MISSING;
+    const title = SEOHelpers.extractFirstTitleTag(htmlContent);
+    const metaDescription = SEOHelpers.extractMetaDescription(htmlContent);
+    const headingTags = SEOHelpers.extractAllHeadingsWithDetails(htmlContent);
 
-        const metaDescription = SEOHelpers.extractMetaDescription(htmlContent);
-        const metaDescriptionLength = metaDescription?.length || 0;
-        const metaDescriptionMessage = metaDescription
-            ? metaDescriptionLength < 150
-                ? META_DESCRIPTION_MESSAGES.META_DESCRIPTION_LENGTH_SHORT
-                : metaDescriptionLength > 160
-                    ? META_DESCRIPTION_MESSAGES.META_DESCRIPTION_LENGTH_LONG
-                    : META_DESCRIPTION_MESSAGES.META_DESCRIPTION_LENGTH_OPTIMAL
-            : META_DESCRIPTION_MESSAGES.META_DESCRIPTION_MISSING;
+    const headingIssues = SEOHelpers.analyzeHeadingIssues(headingTags, title);
+    const totalHeadings = headingTags.length;
 
-        const headingTags = SEOHelpers.extractAllHeadingsWithDetails(htmlContent);
-        const headingTagCounts = SEOHelpers.countHeadingTagLevels(headingTags);
-        const totalHeadings = headingTags.length;
-        const headingIssues = SEOHelpers.analyzeHeadingIssues(headingTags, title);
-
-        const seoMetrics = {
+    return {
+        seo: {
             title,
+            actualTitle: title,
             titlePresent: !!title,
-            titleLength,
-            titleMessage,
+            titleLength: title?.length || 0,
+            titleMessage: title
+                ? title.length < 50
+                    ? TITLE_MESSAGES.TITLE_LENGTH_SHORT
+                    : title.length > 60
+                        ? TITLE_MESSAGES.TITLE_LENGTH_LONG
+                        : TITLE_MESSAGES.TITLE_LENGTH_OPTIMAL
+                : TITLE_MESSAGES.TITLE_MISSING,
             metaDescription,
+            actualMetaDescription: metaDescription,
             metaDescriptionPresent: !!metaDescription,
-            metaDescriptionLength,
-            metaDescriptionMessage,
+            metaDescriptionLength: metaDescription?.length || 0,
+            metaDescriptionMessage: metaDescription
+                ? metaDescription.length < 150
+                    ? META_DESCRIPTION_MESSAGES.META_DESCRIPTION_LENGTH_SHORT
+                    : metaDescription.length > 160
+                        ? META_DESCRIPTION_MESSAGES.META_DESCRIPTION_LENGTH_LONG
+                        : META_DESCRIPTION_MESSAGES.META_DESCRIPTION_LENGTH_OPTIMAL
+                : META_DESCRIPTION_MESSAGES.META_DESCRIPTION_MISSING,
             seoFriendlyUrl: SEOHelpers.isSeoFriendlyUrl(url),
             faviconPresent: !!favicon,
             faviconUrl: favicon || null,
@@ -153,7 +61,7 @@ export const calculateMetrics = async (data: IContent): Promise<MetricResults> =
             headingAnalysis: {
                 summary: {
                     totalHeadings,
-                    headingTagCounts,
+                    headingTagCounts: SEOHelpers.countHeadingTagLevels(headingTags),
                 },
                 issues: {
                     ...headingIssues,
@@ -162,47 +70,23 @@ export const calculateMetrics = async (data: IContent): Promise<MetricResults> =
                 },
                 detailedHeadings: headingTags,
             },
-        };
-
-        console.debug("[calculateMetrics] SEO Metrics calculated", seoMetrics);
-
-        /** Security Metrics */
-        const securityMetrics = {
+        },
+        security: {
             httpsEnabled: SecurityHelpers.isHttpsEnabled(url),
             mixedContent: SecurityHelpers.hasMixedContent(htmlContent),
             serverSignatureHidden: SecurityHelpers.isServerSignatureHidden(headers),
             hstsEnabled: SecurityHelpers.isHstsEnabled(headers),
-        };
-
-        console.debug("[calculateMetrics] Security Metrics calculated", securityMetrics);
-
-        /** Performance Metrics */
-        const performanceMetrics = {
+        },
+        performance: {
             pageSizeKb: PerformanceHelpers.calculatePageSize(htmlContent),
             httpRequests: PerformanceHelpers.countHttpRequests(htmlContent),
             textCompressionEnabled: PerformanceHelpers.isTextCompressionEnabled(headers),
-        };
-
-        console.debug("[calculateMetrics] Performance Metrics calculated", performanceMetrics);
-
-        /** Miscellaneous Metrics */
-        const miscellaneousMetrics = {
+        },
+        miscellaneous: {
             metaViewportPresent: MiscellaneousHelpers.isMetaViewportPresent(htmlContent),
             characterSet: MiscellaneousHelpers.extractCharacterSet(htmlContent),
             sitemapAccessible: await MiscellaneousHelpers.isSitemapAccessible(url),
             textToHtmlRatio: MiscellaneousHelpers.calculateTextToHtmlRatio(htmlContent, textContent),
-        };
-
-        console.debug("[calculateMetrics] Miscellaneous Metrics calculated", miscellaneousMetrics);
-
-        return {
-            seo: seoMetrics,
-            security: securityMetrics,
-            performance: performanceMetrics,
-            miscellaneous: miscellaneousMetrics,
-        };
-    } catch (error) {
-        console.error("[calculateMetrics] Error occurred:", error);
-        throw new Error("Failed to calculate metrics.");
-    }
+        },
+    };
 };

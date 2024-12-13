@@ -1,4 +1,5 @@
 // src/models/MetricsModel.ts
+
 import mongoose, { Schema, Document } from "mongoose";
 
 // Define interfaces for each metric type
@@ -26,7 +27,6 @@ interface SEO {
     noindexTagPresent: boolean;
     noindexHeaderPresent: boolean;
     has404ErrorPage: boolean;
-
     headingAnalysis: {
         summary: {
             totalHeadings: number;
@@ -92,147 +92,108 @@ interface Miscellaneous {
 export interface IMetrics extends Document {
     userId: string;
     url: string;
-    metrics: {
+    status: "processing" | "ready" | "error";
+    metrics?: {
         seo: SEO;
         security: Security;
         performance: Performance;
         miscellaneous: Miscellaneous;
     };
-    screenshotPath: string | null;
+    screenshotPath?: string | null;
     createdAt: Date;
 }
 
 // Define the Mongoose schema
 const MetricsSchema = new Schema<IMetrics>({
-    userId: { type: String, required: true, index: true }, // Indexed for faster querying
+    userId: { type: String, required: true, index: true },
     url: { type: String, required: true, index: true },
+    status: { type: String, enum: ["processing", "ready", "error"], default: "processing" },
     metrics: {
-        seo: {
-            type: new Schema({
-                actualTitle: { type: String, default: null },
-                title: { type: String, default: null },
-                titlePresent: { type: Boolean, required: true },
-                titleLength: { type: Number, required: true },
-                titleMessage: { type: String, required: true },
-                actualMetaDescription: { type: String, default: null },
-                metaDescription: { type: String, default: null },
-                metaDescriptionPresent: { type: Boolean, required: true },
-                metaDescriptionLength: { type: Number, required: true },
-                metaDescriptionMessage: { type: String, required: true },
-                seoFriendlyUrl: { type: Boolean, required: true },
-                faviconPresent: { type: Boolean, required: true },
-                faviconUrl: { type: String, default: null },
-                robotsTxtAccessible: { type: Boolean, required: true },
-                inPageLinks: { type: Number, required: true },
-                keywordsPresent: { type: String, required: true },
-                hreflangTagPresent: { type: [String], default: [] },
-                languageDeclared: { type: String, default: null },
-                canonicalTagPresent: { type: Boolean, required: true },
-                canonicalTagUrl: { type: String, default: null },
-                noindexTagPresent: { type: Boolean, required: true },
-                noindexHeaderPresent: { type: Boolean, required: true },
-                has404ErrorPage: { type: Boolean, required: true },
-
-                headingAnalysis: {
-                    type: new Schema({
-                        summary: {
-                            type: new Schema({
-                                totalHeadings: { type: Number, required: true },
-                                headingTagCounts: {
-                                    type: new Schema({
-                                        h1: { type: Number, required: true },
-                                        h2: { type: Number, required: true },
-                                        h3: { type: Number, required: true },
-                                        h4: { type: Number, required: true },
-                                        h5: { type: Number, required: true },
-                                        h6: { type: Number, required: true },
-                                    }),
-                                    required: true,
-                                },
-                            }),
-                            required: true,
+        type: new Schema(
+            {
+                seo: {
+                    type: Object,
+                    default: {
+                        actualTitle: null,
+                        title: null,
+                        titlePresent: false,
+                        titleLength: 0,
+                        titleMessage: "",
+                        actualMetaDescription: null,
+                        metaDescription: null,
+                        metaDescriptionPresent: false,
+                        metaDescriptionLength: 0,
+                        metaDescriptionMessage: "",
+                        seoFriendlyUrl: false,
+                        faviconPresent: false,
+                        faviconUrl: null,
+                        robotsTxtAccessible: false,
+                        inPageLinks: 0,
+                        keywordsPresent: "",
+                        hreflangTagPresent: [],
+                        languageDeclared: null,
+                        canonicalTagPresent: false,
+                        canonicalTagUrl: null,
+                        noindexTagPresent: false,
+                        noindexHeaderPresent: false,
+                        has404ErrorPage: false,
+                        headingAnalysis: {
+                            summary: {
+                                totalHeadings: 0,
+                                headingTagCounts: { h1: 0, h2: 0, h3: 0, h4: 0, h5: 0, h6: 0 },
+                            },
+                            issues: {
+                                multipleH1Tags: false,
+                                missingH1Tag: false,
+                                h1MatchesTitle: false,
+                                sequence: { hasIssues: false, skippedLevels: [] },
+                                invalidTextLength: { tooShort: [], tooLong: [] },
+                                duplicateHeadings: [],
+                                excessiveHeadings: false,
+                                insufficientHeadings: false,
+                            },
+                            detailedHeadings: [],
                         },
-                        issues: {
-                            type: new Schema({
-                                multipleH1Tags: { type: Boolean, required: true },
-                                missingH1Tag: { type: Boolean, required: true },
-                                h1MatchesTitle: { type: Boolean, required: true },
-                                sequence: {
-                                    type: new Schema({
-                                        hasIssues: { type: Boolean, required: true },
-                                        skippedLevels: { type: [String], default: [] },
-                                    }),
-                                    required: true,
-                                },
-                                invalidTextLength: {
-                                    type: new Schema({
-                                        tooShort: { type: [String], default: [] },
-                                        tooLong: { type: [String], default: [] },
-                                    }),
-                                    required: true,
-                                },
-                                duplicateHeadings: { type: [String], default: [] },
-                                excessiveHeadings: { type: Boolean, required: true },
-                                insufficientHeadings: { type: Boolean, required: true },
-                            }),
-                            required: true,
-                        },
-                        detailedHeadings: {
-                            type: [
-                                {
-                                    level: { type: String, required: true },
-                                    content: { type: String, required: true },
-                                    order: { type: Number, required: true },
-                                },
-                            ],
-                            required: true,
-                        },
-                    }),
-                    required: true,
+                    },
                 },
-            }),
-            required: true,
-        },
-        security: {
-            type: new Schema({
-                httpsEnabled: { type: Boolean, required: true },
-                mixedContent: { type: Boolean, required: true },
-                serverSignatureHidden: { type: Boolean, required: true },
-                hstsEnabled: { type: Boolean, required: true },
-            }),
-            required: true,
-        },
-        performance: {
-            type: new Schema({
-                pageSizeKb: { type: Number, required: true },
-                httpRequests: {
-                    type: new Schema({
-                        total: { type: Number, required: true },
-                        links: { type: Number, required: true },
-                        scripts: { type: Number, required: true },
-                        images: { type: Number, required: true },
-                    }),
-                    required: true,
+                security: {
+                    type: Object,
+                    default: {
+                        httpsEnabled: false,
+                        mixedContent: false,
+                        serverSignatureHidden: false,
+                        hstsEnabled: false,
+                    },
                 },
-                textCompressionEnabled: { type: Boolean, required: true },
-            }),
-            required: true,
-        },
-        miscellaneous: {
-            type: new Schema({
-                metaViewportPresent: { type: Boolean, required: true },
-                characterSet: { type: String, default: null },
-                sitemapAccessible: { type: Boolean, required: true },
-                textToHtmlRatio: { type: Number, required: true },
-            }),
-            required: true,
-        },
+                performance: {
+                    type: Object,
+                    default: {
+                        pageSizeKb: 0,
+                        httpRequests: { total: 0, links: 0, scripts: 0, images: 0 },
+                        textCompressionEnabled: false,
+                    },
+                },
+                miscellaneous: {
+                    type: Object,
+                    default: {
+                        metaViewportPresent: false,
+                        characterSet: null,
+                        sitemapAccessible: false,
+                        textToHtmlRatio: 0,
+                    },
+                },
+            },
+            { _id: false }
+        ),
+        required: true,
+        default: {}, // Default to an empty object to allow schema defaults to apply
     },
     screenshotPath: { type: String, default: null },
     createdAt: { type: Date, default: Date.now },
 });
 
-MetricsSchema.index({ userId: 1, url: 1 }, { unique: true }); // Compound index for userId and url
+// Add a compound index for userId and url
+MetricsSchema.index({ userId: 1, url: 1 }, { unique: true });
 
-// Export the Mongoose model
+// Export the model
 export const Metrics = mongoose.model<IMetrics>("Metrics", MetricsSchema);
