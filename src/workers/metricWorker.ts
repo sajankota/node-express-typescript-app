@@ -16,6 +16,10 @@ puppeteer.use(StealthPlugin());
 
 const MONGO_URI =
   process.env.MONGO_URI || "mongodb://127.0.0.1:27017/roundcodebox";
+const NODE_SERVER_URL =
+  process.env.NODE_ENV === "production"
+    ? "http://api.roundcodebox.com"
+    : "http://localhost:4000";
 
 // Connect to MongoDB
 const connectWorkerToDB = async (): Promise<void> => {
@@ -29,7 +33,19 @@ const connectWorkerToDB = async (): Promise<void> => {
   }
 };
 
-// Generate screenshot for a given URL
+// Function to detect captchas on a page
+const detectCaptcha = async (page: Page): Promise<boolean> => {
+  try {
+    return await page.evaluate(
+      () => !!document.querySelector("iframe[src*='captcha']")
+    );
+  } catch (error) {
+    console.error("[Worker] Error during captcha detection:", error);
+    return false;
+  }
+};
+
+// Function to generate a screenshot for a given URL
 const generateScreenshot = async (
   browser: Browser,
   url: string,
@@ -37,26 +53,28 @@ const generateScreenshot = async (
 ): Promise<string | null> => {
   let page: Page | null = null;
   try {
+    console.log(`[Worker] Generating screenshot for URL: ${url}`);
     page = await browser.newPage();
-    console.log("[Worker] Navigating to URL:", url);
     await page.setViewport({ width: 1280, height: 768, deviceScaleFactor: 2 });
-    await page.goto(url, { waitUntil: "networkidle2", timeout: 90000 });
 
-    console.log("[Worker] Capturing screenshot...");
+    await page.goto(url, {
+      waitUntil: "networkidle2",
+      timeout: 90000,
+    });
+
+    if (await detectCaptcha(page)) {
+      console.warn(`[Worker] Skipping URL due to captcha: ${url}`);
+      return null;
+    }
+
     await page.screenshot({
       path: outputPath,
       fullPage: true,
       type: "jpeg",
-      quality: 90,
+      quality: 100,
     });
-    console.log("[Worker] Screenshot saved at:", outputPath);
-    return `/screenshots/${path.basename(outputPath)}`;
-  } catch (error) {
-    console.error(
-      `[Worker] Error generating screenshot for URL: ${url}`,
-      error
-    );
-    return null;
+    console.log(`[Worker] Screenshot saved at: ${outputPath}`);
+    return `${NODE_SERVER_URL}/screenshots/${path.basename(outputPath)}`;
   } finally {
     if (page) await page.close();
   }
@@ -69,15 +87,19 @@ const generateScreenshot = async (
     console.log("[Worker] Starting processing...");
     await connectWorkerToDB();
 
-    const { userId, url } = workerData;
-    if (!url || typeof url !== "string") {
-      throw new Error("Invalid or missing 'url' in workerData.");
+    // Use workerData destructuring
+    const { userId, url }: { userId: string; url: string } = workerData;
+
+    // Ensure workerData is valid
+    if (!userId || !url) {
+      throw new Error("Invalid or missing 'userId' or 'url' in workerData.");
     }
 
     console.log(
       `[Worker] Processing metrics for URL: ${url} and User: ${userId}`
     );
 
+    // Fetch scraped data
     const scrapedData = await Content.findOne({ userId, url });
     if (!scrapedData) {
       console.warn(`[Worker] No scraped data found for URL: ${url}`);
@@ -111,10 +133,36 @@ const generateScreenshot = async (
       `${url.replace(/[^a-zA-Z0-9]/g, "_")}.jpeg`
     );
 
+    // Concurrently generate the screenshot and calculate metrics
+    const screenshotPromise = generateScreenshot(
+      browser,
+      url,
+      screenshotPath
+    ).then(() => {
+      const publicScreenshotUrl = `${NODE_SERVER_URL}/screenshots/${path.basename(
+        screenshotPath
+      )}`;
+      return Metrics.updateOne(
+        { userId, url },
+        { $set: { screenshotPath: publicScreenshotUrl } },
+        { upsert: true }
+      );
+    });
+
+    const metricsPromise = calculateMetrics(scrapedData.toObject()).then(
+      (metrics) =>
+        Metrics.updateOne(
+          { userId, url },
+          { $set: { metrics, createdAt: new Date() } },
+          { upsert: true }
+        )
+    );
     console.log("[Worker] Starting metrics and screenshot generation...");
     const [screenshotUrl, metrics] = await Promise.all([
       generateScreenshot(browser, url, screenshotPath),
       calculateMetrics(scrapedData.toObject()),
+      screenshotPromise,
+      metricsPromise,
     ]);
 
     console.log("[Worker] Saving metrics to database...");
@@ -143,12 +191,18 @@ const generateScreenshot = async (
     );
   } catch (error) {
     console.error(`[Worker] Error during processing:`, error);
-    await Metrics.updateOne(
-      { userId, url },
-      { $set: { status: "error" } },
-      { upsert: true }
-    );
-    parentPort?.postMessage({ userId, url, status: "error" });
+    if (workerData?.url && workerData?.userId) {
+      await Metrics.updateOne(
+        { userId: workerData.userId, url: workerData.url },
+        { $set: { status: "error" } },
+        { upsert: true }
+      );
+      parentPort?.postMessage({
+        userId: workerData.userId,
+        url: workerData.url,
+        status: "error",
+      });
+    }
   } finally {
     if (browser) await browser.close();
     await mongoose.disconnect();
