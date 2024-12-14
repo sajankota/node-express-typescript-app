@@ -43,8 +43,14 @@ export const processMetrics = async (req: Request, res: Response): Promise<void>
             url,
             generatedAt: new Date(),
         };
-        console.log("[WebSocket] Emitting 'project_update' for 'processing':", processingPayload);
+        console.log("[WebSocket] Preparing to emit 'processing' updates.");
+        console.log("[WebSocket] Payload for 'project_update':", processingPayload);
+        console.log("[WebSocket] Emitting 'project_update' to room:", userId);
         io.to(userId).emit("project_update", processingPayload);
+
+        console.log("[WebSocket] Payload for 'status_update':", { url, status: "processing" });
+        console.log("[WebSocket] Emitting 'status_update' to room:", userId);
+        io.to(userId).emit("status_update", { url, status: "processing" });
 
         console.log("[processMetrics] Calculating metrics...");
         const calculatedMetrics = await calculateMetrics(scrapedData);
@@ -64,12 +70,16 @@ export const processMetrics = async (req: Request, res: Response): Promise<void>
             generatedAt: metricsEntry.createdAt,
         };
 
-        console.log("[WebSocket] Emitting to room:", userId);
-        console.log("[WebSocket] Payload for 'ready':", readyPayload);
+        console.log("[WebSocket] Preparing to emit 'ready' updates.");
+        console.log("[WebSocket] Payload for 'project_update':", readyPayload);
+        console.log("[WebSocket] Emitting 'project_update' to room:", userId);
         io.to(userId).emit("project_update", readyPayload);
+
+        console.log("[WebSocket] Payload for 'status_update':", { url, status: "ready" });
+        console.log("[WebSocket] Emitting 'status_update' to room:", userId);
+        io.to(userId).emit("status_update", { url, status: "ready" });
+
         console.log("[WebSocket] 'ready' status emitted successfully.");
-
-
         res.status(200).json({
             message: "Metrics processed successfully",
             reportId: metricsEntry._id,
@@ -84,8 +94,14 @@ export const processMetrics = async (req: Request, res: Response): Promise<void>
             url,
             status: "error",
         };
-        console.log("[WebSocket] Emitting 'project_update' for 'error':", errorPayload);
+        console.log("[WebSocket] Preparing to emit 'error' updates.");
+        console.log("[WebSocket] Payload for 'project_update':", errorPayload);
+        console.log("[WebSocket] Emitting 'project_update' to room:", userId);
         io.to(userId).emit("project_update", errorPayload);
+
+        console.log("[WebSocket] Payload for 'status_update':", { url, status: "error" });
+        console.log("[WebSocket] Emitting 'status_update' to room:", userId);
+        io.to(userId).emit("status_update", { url, status: "error" });
 
         res.status(500).json({ message: "Error processing metrics" });
     }

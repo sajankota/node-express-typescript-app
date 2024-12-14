@@ -106,29 +106,38 @@ io.on("connection", (socket) => {
   console.log(`[WebSocket] Connection established: ${socket.id}`);
 
   socket.on("subscribe", (data: { userId: string }) => {
-    console.log(`[WebSocket] User subscribed to room:`, data);
+    console.log(`[WebSocket] User subscribing to room:`, data);
     socket.join(data.userId);
+    console.log(`[WebSocket] User successfully joined room: ${data.userId}`);
   });
 
-  // Debug WebSocket Emit
   const emitProjectUpdate = (userId: string, payload: ProjectUpdatePayload) => {
-    console.log(`[WebSocket] Emitting to room ${userId}:`, payload);
-    io.to(userId).emit("project_update", payload);
+    try {
+      console.log(`[WebSocket] Emitting 'project_update' to room ${userId}:`, payload);
+      io.to(userId).emit("project_update", payload);
+    } catch (error) {
+      console.error(`[WebSocket] Error emitting 'project_update':`, error);
+    }
   };
 
-  // Add this to verify:
-  io.on("connection", (socket) => {
-    console.log(`[WebSocket] Connection established: ${socket.id}`);
+  const emitStatusUpdate = (userId: string, payload: { url: string; status: string }) => {
+    try {
+      console.log(`[WebSocket] Preparing to emit 'status_update' for ${payload.url} with status '${payload.status}'...`);
+      io.to(userId).emit("status_update", payload);
+      console.log(`[WebSocket] Successfully emitted 'status_update' for ${payload.url}.`);
+    } catch (error) {
+      console.error(`[WebSocket] Error emitting 'status_update':`, error);
+    }
+  };
 
-    socket.on("subscribe", (data: { userId: string }) => {
-      console.log(`[WebSocket] User subscribed to room:`, data);
-      socket.join(data.userId);
-    });
+  socket.on("test_status_update", (data: { userId: string }) => {
+    console.log(`[WebSocket] Received test_status_update event for user ${data.userId}`);
+    const mockPayload = { url: "http://example.com", status: "processing" };
+    emitStatusUpdate(data.userId, mockPayload);
   });
 
-
-  // Simulate a status update for testing
   socket.on("test_project_update", (data: { userId: string }) => {
+    console.log(`[WebSocket] Received test_project_update event for user ${data.userId}`);
     const mockPayload: ProjectUpdatePayload = {
       url: "http://example.com",
       reportId: "mock-report-id",

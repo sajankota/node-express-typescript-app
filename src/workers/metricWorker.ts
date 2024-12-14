@@ -87,19 +87,14 @@ const generateScreenshot = async (
     console.log("[Worker] Starting processing...");
     await connectWorkerToDB();
 
-    // Use workerData destructuring
     const { userId, url }: { userId: string; url: string } = workerData;
 
-    // Ensure workerData is valid
     if (!userId || !url) {
       throw new Error("Invalid or missing 'userId' or 'url' in workerData.");
     }
 
-    console.log(
-      `[Worker] Processing metrics for URL: ${url} and User: ${userId}`
-    );
+    console.log(`[Worker] Processing metrics for URL: ${url} and User: ${userId}`);
 
-    // Fetch scraped data
     const scrapedData = await Content.findOne({ userId, url });
     if (!scrapedData) {
       console.warn(`[Worker] No scraped data found for URL: ${url}`);
@@ -133,45 +128,25 @@ const generateScreenshot = async (
       `${url.replace(/[^a-zA-Z0-9]/g, "_")}.jpeg`
     );
 
-    // Concurrently generate the screenshot and calculate metrics
-    const screenshotPromise = generateScreenshot(
-      browser,
-      url,
-      screenshotPath
-    ).then(() => {
-      const publicScreenshotUrl = `${NODE_SERVER_URL}/screenshots/${path.basename(
-        screenshotPath
-      )}`;
-      return Metrics.updateOne(
+    console.log("[Worker] Generating screenshot...");
+    const screenshotUrl = await generateScreenshot(browser, url, screenshotPath);
+
+    if (screenshotUrl) {
+      console.log("[Worker] Updating screenshotPath in Metrics...");
+      await Metrics.updateOne(
         { userId, url },
-        { $set: { screenshotPath: publicScreenshotUrl } },
+        { $set: { screenshotPath: screenshotUrl } },
         { upsert: true }
       );
-    });
+    }
 
-    const metricsPromise = calculateMetrics(scrapedData.toObject()).then(
-      (metrics) =>
-        Metrics.updateOne(
-          { userId, url },
-          { $set: { metrics, createdAt: new Date() } },
-          { upsert: true }
-        )
-    );
-    console.log("[Worker] Starting metrics and screenshot generation...");
-    const [screenshotUrl, metrics] = await Promise.all([
-      generateScreenshot(browser, url, screenshotPath),
-      calculateMetrics(scrapedData.toObject()),
-      screenshotPromise,
-      metricsPromise,
-    ]);
-
-    console.log("[Worker] Saving metrics to database...");
+    console.log("[Worker] Calculating metrics...");
+    const metrics = await calculateMetrics(scrapedData.toObject());
     await Metrics.updateOne(
       { userId, url },
       {
         $set: {
           metrics,
-          screenshotPath: screenshotUrl,
           status: "ready",
           createdAt: new Date(),
         },
@@ -179,16 +154,8 @@ const generateScreenshot = async (
       { upsert: true }
     );
 
-    console.log("[Worker] Sending 'ready' message to parentPort...");
-    parentPort?.postMessage({
-      userId,
-      url,
-      status: "ready",
-      metrics,
-    });
-    console.log(
-      `[Worker] Message sent to parentPort: { userId: ${userId}, status: 'ready' }`
-    );
+    console.log("[Worker] Sending 'ready' status to parentPort...");
+    parentPort?.postMessage({ userId, url, status: "ready", metrics });
   } catch (error) {
     console.error(`[Worker] Error during processing:`, error);
     if (workerData?.url && workerData?.userId) {
@@ -206,6 +173,5 @@ const generateScreenshot = async (
   } finally {
     if (browser) await browser.close();
     await mongoose.disconnect();
-    console.log("[Worker] Browser closed and MongoDB disconnected.");
   }
 })();

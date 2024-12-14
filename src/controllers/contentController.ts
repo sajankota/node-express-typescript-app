@@ -34,7 +34,7 @@ export const getContent = async (req: Request, res: Response): Promise<void> => 
             favicon,
             dynamic: htmlContent.includes("<script>"),
             htmlContent,
-        });
+        }, io);
 
         // Step 4: Update or create an entry in the metricModel database
         let metricsEntry = await Metrics.findOne({ userId, url });
