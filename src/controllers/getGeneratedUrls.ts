@@ -1,7 +1,5 @@
 // src/controllers/getGeneratedUrls.ts
 
-// src/controllers/getGeneratedUrls.ts
-
 import { Request, Response } from "express";
 import { Metrics } from "../models/MetricsModel";
 import { AuthRequest } from "../middleware/authMiddleware";
