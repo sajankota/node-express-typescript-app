@@ -14,7 +14,8 @@ import StealthPlugin from "puppeteer-extra-plugin-stealth";
 
 puppeteer.use(StealthPlugin());
 
-const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/roundcodebox";
+const MONGO_URI =
+  process.env.MONGO_URI || "mongodb://127.0.0.1:27017/roundcodebox";
 
 // Connect to MongoDB
 const connectWorkerToDB = async (): Promise<void> => {
@@ -37,13 +38,24 @@ const generateScreenshot = async (
   let page: Page | null = null;
   try {
     page = await browser.newPage();
+    console.log("[Worker] Navigating to URL:", url);
     await page.setViewport({ width: 1280, height: 768, deviceScaleFactor: 2 });
     await page.goto(url, { waitUntil: "networkidle2", timeout: 90000 });
 
-    await page.screenshot({ path: outputPath, fullPage: true, type: "jpeg", quality: 90 });
+    console.log("[Worker] Capturing screenshot...");
+    await page.screenshot({
+      path: outputPath,
+      fullPage: true,
+      type: "jpeg",
+      quality: 90,
+    });
+    console.log("[Worker] Screenshot saved at:", outputPath);
     return `/screenshots/${path.basename(outputPath)}`;
   } catch (error) {
-    console.error(`[Worker] Error generating screenshot for URL: ${url}`, error);
+    console.error(
+      `[Worker] Error generating screenshot for URL: ${url}`,
+      error
+    );
     return null;
   } finally {
     if (page) await page.close();
@@ -54,6 +66,7 @@ const generateScreenshot = async (
 (async () => {
   let browser: Browser | null = null;
   try {
+    console.log("[Worker] Starting processing...");
     await connectWorkerToDB();
 
     const { userId, url } = workerData;
@@ -61,7 +74,9 @@ const generateScreenshot = async (
       throw new Error("Invalid or missing 'url' in workerData.");
     }
 
-    console.log(`[Worker] Processing metrics for URL: ${url} and User: ${userId}`);
+    console.log(
+      `[Worker] Processing metrics for URL: ${url} and User: ${userId}`
+    );
 
     const scrapedData = await Content.findOne({ userId, url });
     if (!scrapedData) {
@@ -75,6 +90,7 @@ const generateScreenshot = async (
       return;
     }
 
+    console.log("[Worker] Setting status to 'processing'...");
     await Metrics.updateOne(
       { userId, url },
       { $set: { status: "processing" } },
@@ -82,6 +98,7 @@ const generateScreenshot = async (
     );
     parentPort?.postMessage({ userId, url, status: "processing" });
 
+    console.log("[Worker] Launching Puppeteer...");
     browser = await puppeteer.launch({
       headless: true,
       args: ["--no-sandbox", "--disable-setuid-sandbox"],
@@ -94,11 +111,13 @@ const generateScreenshot = async (
       `${url.replace(/[^a-zA-Z0-9]/g, "_")}.jpeg`
     );
 
+    console.log("[Worker] Starting metrics and screenshot generation...");
     const [screenshotUrl, metrics] = await Promise.all([
       generateScreenshot(browser, url, screenshotPath),
       calculateMetrics(scrapedData.toObject()),
     ]);
 
+    console.log("[Worker] Saving metrics to database...");
     await Metrics.updateOne(
       { userId, url },
       {
@@ -112,17 +131,18 @@ const generateScreenshot = async (
       { upsert: true }
     );
 
-    console.log(`[Worker] Metrics processed successfully for URL: ${url}`);
-    parentPort?.postMessage({ userId, url, status: "ready" });
+    console.log("[Worker] Sending 'ready' message to parentPort...");
+    parentPort?.postMessage({
+      userId,
+      url,
+      status: "ready",
+      metrics,
+    });
+    console.log(
+      `[Worker] Message sent to parentPort: { userId: ${userId}, status: 'ready' }`
+    );
   } catch (error) {
-    let errorMessage = "An unknown error occurred";
-    if (error instanceof Error) {
-      errorMessage = error.message;
-      console.error(`[Worker] Error processing metrics: ${error.message}`);
-    } else {
-      console.error(`[Worker] Unknown Error:`, error);
-    }
-
+    console.error(`[Worker] Error during processing:`, error);
     await Metrics.updateOne(
       { userId, url },
       { $set: { status: "error" } },

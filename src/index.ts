@@ -22,13 +22,19 @@ import accessibilityRoutes from "./routes/accessibilityRoutes";
 import cruxRoutes from "./routes/cruxRoutes";
 import metricsRoutes from "./routes/metricsRoutes";
 
+interface ProjectUpdatePayload {
+  url: string;
+  reportId: string;
+  status: "processing" | "ready" | "error";
+}
+
 const app = express();
-const server = http.createServer(app); // Create HTTP server
+const server = http.createServer(app);
 const io = new SocketIOServer(server, {
   cors: {
     origin: [
-      "http://localhost:5173", // Frontend local dev URL
-      "http://localhost:4000", // For WebSocket tests like `wscat`
+      "http://localhost:5173",
+      "http://localhost:4000",
       "https://www.roundcodebox.com",
       "https://api.roundcodebox.com",
     ],
@@ -99,48 +105,36 @@ app.get("/", (req, res) => {
 io.on("connection", (socket) => {
   console.log(`[WebSocket] Connection established: ${socket.id}`);
 
-  // Subscription event
-  socket.on("subscribe", (data) => {
-    try {
-      console.log(`[WebSocket] Subscription request received:`, data);
+  socket.on("subscribe", (data: { userId: string }) => {
+    console.log(`[WebSocket] User subscribed to room:`, data);
+    socket.join(data.userId);
+  });
 
-      if (!data || !data.userId) {
-        throw new Error("Invalid subscription data: Missing userId");
-      }
+  // Debug WebSocket Emit
+  const emitProjectUpdate = (userId: string, payload: ProjectUpdatePayload) => {
+    console.log(`[WebSocket] Emitting to room ${userId}:`, payload);
+    io.to(userId).emit("project_update", payload);
+  };
 
-      // Subscribe the client to the user-specific room
+  // Add this to verify:
+  io.on("connection", (socket) => {
+    console.log(`[WebSocket] Connection established: ${socket.id}`);
+
+    socket.on("subscribe", (data: { userId: string }) => {
+      console.log(`[WebSocket] User subscribed to room:`, data);
       socket.join(data.userId);
-      console.log(`[WebSocket] User ${data.userId} subscribed to room ${data.userId}`);
-
-      // Emit subscription confirmation
-      socket.emit("subscribed", { message: "Subscription successful", userId: data.userId });
-    } catch (err) {
-      if (err instanceof Error) {
-        console.error(`[WebSocket] Error in "subscribe" event: ${err.message}`);
-      } else {
-        console.error(`[WebSocket] Unknown error in "subscribe" event:`, err);
-      }
-      socket.disconnect();
-    }
+    });
   });
 
-  // Debug all incoming messages
-  socket.on("message", (message) => {
-    console.log(`[WebSocket] Message received from ${socket.id}:`, message);
-  });
 
-  // Disconnection event
-  socket.on("disconnect", (reason) => {
-    console.log(`[WebSocket] Disconnected: ${socket.id}. Reason: ${reason}`);
-  });
-
-  // Error handling
-  socket.on("error", (err) => {
-    if (err instanceof Error) {
-      console.error(`[WebSocket] Error: ${err.message}`);
-    } else {
-      console.error(`[WebSocket] Unknown error:`, err);
-    }
+  // Simulate a status update for testing
+  socket.on("test_project_update", (data: { userId: string }) => {
+    const mockPayload: ProjectUpdatePayload = {
+      url: "http://example.com",
+      reportId: "mock-report-id",
+      status: "ready",
+    };
+    emitProjectUpdate(data.userId, mockPayload);
   });
 });
 
