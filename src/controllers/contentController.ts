@@ -1,57 +1,74 @@
 // src/controllers/contentController.ts
 
 import { Request, Response } from "express";
+import { io } from "../index";
 import { fetchWithAxios, fetchWithPuppeteer, processContent, saveContentToDB } from "../services/contentService";
+import { Metrics } from "../models/MetricsModel";
 
 export const getContent = async (req: Request, res: Response): Promise<void> => {
-    console.log("[Debug] Request Body:", req.body); // Debug log for request body
+    const { url, userId } = req.body;
 
-    const { url, userId } = req.body; // Extract URL and userId from the request body
-
-    // Check for missing or invalid URL or userId
-    if (!url || typeof url !== "string" || !userId || typeof userId !== "string") {
-        res.status(400).json({ error: "Invalid or missing 'url' or 'userId' in request body" });
+    if (!url || !userId) {
+        res.status(400).json({ error: "Missing 'url' or 'userId' in request body" });
         return;
     }
 
     try {
+        // Step 1: Fetch the raw HTML content
         let htmlContent: string;
-
-        // Step 1: Fetch content
         try {
             htmlContent = await fetchWithAxios(url);
-        } catch (axiosError) {
-            console.log("[Axios] Failed. Switching to Puppeteer...");
+        } catch {
             htmlContent = await fetchWithPuppeteer(url);
         }
 
-        // Step 2: Process HTML content
+        // Step 2: Process the raw HTML content
         const { metadata, textContent, favicon } = processContent(htmlContent, url);
 
-        const finalTextContent = textContent?.trim() || "No content found";
-        const dynamic = htmlContent.includes("<script>"); // Check for dynamic content
-
-        // Step 3: Save scraped content to the database (this triggers worker processing)
-        await saveContentToDB({
-            userId, // Include userId
+        // Step 3: Save the processed data into the contentModel database
+        const savedContent = await saveContentToDB({
+            userId,
             url,
             metadata,
-            textContent: finalTextContent,
+            textContent,
             favicon,
-            dynamic,
-            htmlContent, // Save the full HTML
+            dynamic: htmlContent.includes("<script>"),
+            htmlContent,
+        }, io);
+
+        // Step 4: Update or create an entry in the metricModel database
+        let metricsEntry = await Metrics.findOne({ userId, url });
+        if (!metricsEntry) {
+            metricsEntry = await Metrics.create({
+                userId,
+                url,
+                status: "processing", // Initial status
+                metrics: {}, // Default values for metrics
+            });
+        } else {
+            metricsEntry.status = "processing";
+            metricsEntry.createdAt = new Date();
+            await metricsEntry.save();
+        }
+
+        // Step 5: Emit WebSocket event for real-time updates
+        io.to(userId).emit("project_update", {
+            url: metricsEntry.url,
+            reportId: metricsEntry._id,
+            status: metricsEntry.status,
+            metadata: savedContent.metadata,
+            generatedAt: metricsEntry.createdAt,
         });
 
-        console.log(`[Content] Scraping data saved for URL: ${url}`);
-
-        // Step 4: Respond to the client
+        // Step 6: Send a success response
         res.status(200).json({
-            message: "Content scraped and metrics processing triggered successfully.",
-            data: { url, metadata, textContent: finalTextContent, favicon, dynamic },
+            message: "Processing started.",
+            reportId: metricsEntry._id,
         });
     } catch (error) {
         console.error("[Get Content] Error:", error);
-        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-        res.status(500).json({ error: "Failed to fetch content", details: errorMessage });
+
+        const errorMessage = error instanceof Error ? error.message : "Failed to generate report.";
+        res.status(500).json({ error: errorMessage });
     }
 };

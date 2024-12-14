@@ -1,65 +1,108 @@
 // src/controllers/processMetrics.ts
 
 import { Request, Response } from "express";
-import { Content, IContent } from "../models/ContentModel";
+import { Content } from "../models/ContentModel";
 import { Metrics } from "../models/MetricsModel";
 import { calculateMetrics } from "../services/calculateMetrics";
-import { FilterQuery } from "mongoose";
 
 export const processMetrics = async (req: Request, res: Response): Promise<void> => {
     const { userId, url } = req.body;
+    console.log("[processMetrics] Received request:", req.body);
+
+    if (!userId || !url) {
+        console.error("[processMetrics] Missing 'userId' or 'url' in request body");
+        res.status(400).json({ message: "Missing 'userId' or 'url' in request body" });
+        return;
+    }
 
     try {
-        // Step 1: Build the query
-        const query: FilterQuery<IContent> = {};
-        if (userId) query.userId = String(userId).trim();
-        if (url) query.url = String(url).trim();
-
-        console.log("[Debug] Querying Content collection with:", query);
-
-        // Step 2: Fetch data and cast result
-        const scrapedData: IContent[] = await Content.find(query).lean();
-
-        if (!scrapedData.length) {
+        console.log("[processMetrics] Fetching scraped data...");
+        const scrapedData = await Content.findOne({ userId, url }).lean();
+        if (!scrapedData) {
+            console.warn(`[processMetrics] No scraped data found for URL: ${url}`);
             res.status(404).json({ message: "No scraped data found for the given criteria" });
             return;
         }
 
-        console.log(`[Debug] Fetched ${scrapedData.length} scraped data records`);
+        console.log("[processMetrics] Fetching metrics entry...");
+        let metricsEntry = await Metrics.findOne({ userId, url });
+        if (!metricsEntry) {
+            console.log("[processMetrics] Creating new metrics entry...");
+            metricsEntry = await Metrics.create({ userId, url, status: "processing" });
+        } else {
+            console.log("[processMetrics] Updating metrics entry status to 'processing'...");
+            metricsEntry.status = "processing";
+            await metricsEntry.save();
+        }
 
-        // Step 3: Process each record concurrently
-        const metricsData = await Promise.all(
-            scrapedData.map(async (data) => {
-                try {
-                    const metrics = await calculateMetrics(data);
+        // Emit WebSocket update for "processing" status
+        const io = req.app.get("io");
+        const processingPayload = {
+            reportId: metricsEntry._id,
+            status: "processing",
+            url,
+            generatedAt: new Date(),
+        };
+        console.log("[WebSocket] Preparing to emit 'processing' updates.");
+        console.log("[WebSocket] Payload for 'project_update':", processingPayload);
+        console.log("[WebSocket] Emitting 'project_update' to room:", userId);
+        io.to(userId).emit("project_update", processingPayload);
 
-                    if (!metrics.seo || !metrics.security || !metrics.performance || !metrics.miscellaneous) {
-                        throw new Error("Incomplete metrics data.");
-                    }
+        console.log("[WebSocket] Payload for 'status_update':", { url, status: "processing" });
+        console.log("[WebSocket] Emitting 'status_update' to room:", userId);
+        io.to(userId).emit("status_update", { url, status: "processing" });
 
-                    await Metrics.updateOne(
-                        { userId: data.userId, url: data.url },
-                        { $set: { metrics, createdAt: new Date() } },
-                        { upsert: true }
-                    );
+        console.log("[processMetrics] Calculating metrics...");
+        const calculatedMetrics = await calculateMetrics(scrapedData);
 
-                    return metrics;
-                } catch (error) {
-                    console.error("[processMetrics] Error processing record:", error);
-                    throw error;
-                }
-            })
-        );
+        console.log("[processMetrics] Updating metrics entry...");
+        metricsEntry.metrics = calculatedMetrics;
+        metricsEntry.status = "ready";
+        metricsEntry.createdAt = new Date();
+        await metricsEntry.save();
 
-        console.log("[Debug] Metrics processing completed successfully");
+        // Emit WebSocket update for "ready" status
+        const readyPayload = {
+            reportId: metricsEntry._id,
+            status: "ready",
+            url,
+            metrics: calculatedMetrics,
+            generatedAt: metricsEntry.createdAt,
+        };
 
+        console.log("[WebSocket] Preparing to emit 'ready' updates.");
+        console.log("[WebSocket] Payload for 'project_update':", readyPayload);
+        console.log("[WebSocket] Emitting 'project_update' to room:", userId);
+        io.to(userId).emit("project_update", readyPayload);
+
+        console.log("[WebSocket] Payload for 'status_update':", { url, status: "ready" });
+        console.log("[WebSocket] Emitting 'status_update' to room:", userId);
+        io.to(userId).emit("status_update", { url, status: "ready" });
+
+        console.log("[WebSocket] 'ready' status emitted successfully.");
         res.status(200).json({
             message: "Metrics processed successfully",
-            metrics: metricsData,
+            reportId: metricsEntry._id,
+            metrics: calculatedMetrics,
         });
     } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
-        console.error("[processMetrics] Error:", errorMessage);
-        res.status(500).json({ message: "Error processing metrics", error: errorMessage });
+        const io = req.app.get("io");
+        console.error("[processMetrics] Error occurred:", error);
+
+        // Emit WebSocket update for "error" status
+        const errorPayload = {
+            url,
+            status: "error",
+        };
+        console.log("[WebSocket] Preparing to emit 'error' updates.");
+        console.log("[WebSocket] Payload for 'project_update':", errorPayload);
+        console.log("[WebSocket] Emitting 'project_update' to room:", userId);
+        io.to(userId).emit("project_update", errorPayload);
+
+        console.log("[WebSocket] Payload for 'status_update':", { url, status: "error" });
+        console.log("[WebSocket] Emitting 'status_update' to room:", userId);
+        io.to(userId).emit("status_update", { url, status: "error" });
+
+        res.status(500).json({ message: "Error processing metrics" });
     }
 };

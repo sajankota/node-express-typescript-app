@@ -6,6 +6,7 @@ import puppeteer from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import { Content } from "../models/ContentModel";
 import { triggerMetricProcessing } from "./workerService";
+import { Server as SocketIOServer } from "socket.io";
 
 // Use Puppeteer Stealth Plugin to bypass bot detections
 puppeteer.use(StealthPlugin());
@@ -118,13 +119,13 @@ export const saveContentToDB = async (data: {
     favicon: string | null;
     dynamic: boolean;
     htmlContent: string;
-}) => {
+}, io: SocketIOServer) => {
     try {
         const savedContent = await Content.create(data);
         console.log("[Database] Scraped content saved successfully for:", data.url);
 
         console.log(`[Worker Pool] Triggering metric processing for URL: ${data.url}`);
-        await triggerMetricProcessing(data.userId, data.url);
+        await triggerMetricProcessing(data.userId, data.url, io);
 
         return savedContent;
     } catch (error) {
