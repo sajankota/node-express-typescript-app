@@ -26,7 +26,14 @@ export const getGeneratedUrls = async (req: AuthRequest, res: Response): Promise
         const [metrics, total] = await Promise.all([
             Metrics.find(
                 { userId }, // Match by userId
-                { url: 1, createdAt: 1, _id: 1, status: 1, metrics: { seo: { title: 1 } } } // Include necessary fields
+                {
+                    url: 1,
+                    createdAt: 1,
+                    _id: 1,
+                    status: 1,
+                    "metrics.seo.title": 1,
+                    "metrics.seo.faviconUrl": 1, // Correct field name
+                }
             )
                 .sort({ createdAt: -1 }) // Sort by newest first
                 .skip(skip) // Skip the appropriate number of records
@@ -49,6 +56,7 @@ export const getGeneratedUrls = async (req: AuthRequest, res: Response): Promise
             status: metric.status, // Include the status field here
             generatedAt: metric.createdAt,
             seoTitle: metric.metrics?.seo?.title || "No Title",
+            favicon: metric.metrics?.seo?.faviconUrl || null, // Correct field name
         }));
 
         console.log("[Debug] Transformed Data:", transformedData);
