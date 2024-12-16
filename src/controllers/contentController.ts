@@ -57,6 +57,7 @@ export const getContent = async (req: Request, res: Response): Promise<void> => 
             reportId: metricsEntry._id,
             status: metricsEntry.status,
             metadata: savedContent.metadata,
+            favicon,
             generatedAt: metricsEntry.createdAt,
         });
 
@@ -64,6 +65,7 @@ export const getContent = async (req: Request, res: Response): Promise<void> => 
         res.status(200).json({
             message: "Processing started.",
             reportId: metricsEntry._id,
+            favicon,
         });
     } catch (error) {
         console.error("[Get Content] Error:", error);
