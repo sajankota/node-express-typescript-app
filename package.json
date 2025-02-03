@@ -39,7 +39,7 @@
     "metascraper-title": "^5.45.25",
     "metascraper-url": "^5.45.25",
     "metascraper-video": "^5.45.25",
-    "mongoose": "^8.8.1",
+    "mongoose": "^8.9.6",
     "nodemailer": "^6.9.16",
     "puppeteer": "^23.9.0",
     "puppeteer-extra": "^3.3.6",
