@@ -41,7 +41,7 @@
     "metascraper-video": "^5.45.25",
     "mongoose": "^8.8.1",
     "nodemailer": "^6.9.16",
-    "puppeteer": "^23.9.0",
+    "puppeteer": "^24.2.0",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
     "react-ga4": "^2.1.0",
